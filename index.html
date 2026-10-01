@@ -122,6 +122,9 @@ h3{font-size:1.05rem;margin:0}
 .invite{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.92rem}
 .modal .grid{margin:12px 0}
 .box.center{text-align:center}
+.anfragen{background:var(--sheet);border:2px solid var(--accent);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.anfragen h3{margin:0 0 8px;color:var(--accent)}
+.anfrage{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--rule)}
 @media (max-width:480px){.hide-s{display:none}}
 </style>
 
@@ -478,7 +481,7 @@ function Login() {
     setBusy(true);
     try {
       if (mode === 'login') await auth.signInWithEmailAndPassword(em, pw);
-      else if (mode === 'register') { const c = await auth.createUserWithEmailAndPassword(em, pw); await c.user.sendEmailVerification(); }
+      else if (mode === 'register') { await auth.createUserWithEmailAndPassword(em, pw); }
       else { await auth.sendPasswordResetEmail(em); toast('E-Mail zum Zurücksetzen gesendet'); go('login'); }
     } catch (x) { setErr(authErr(x.code)); }
     setBusy(false);
@@ -488,7 +491,7 @@ function Login() {
       <div className="sheet">
         <h1>Berichtsheft</h1>
         {AUSBILDER_LINK && <p className="badge eingereicht" style={{display:'inline-block',margin:'0 0 6px'}}>Ausbilder-Zugang</p>}
-        <p className="muted">{mode === 'login' ? 'Mit deiner E-Mail anmelden.' : mode === 'register' ? 'Konto mit der E-Mail erstellen, an die du eingeladen wurdest.' : 'Link zum Zurücksetzen per E-Mail anfordern.'}</p>
+        <p className="muted">{mode === 'login' ? 'Mit deiner E-Mail anmelden.' : mode === 'register' ? 'Konto mit deiner E-Mail erstellen.' : 'Link zum Zurücksetzen per E-Mail anfordern.'}</p>
         <form onSubmit={submit}>
           <label className="fld"><span>E-Mail</span><input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label>
           {mode !== 'reset' && <label className="fld" style={{marginTop:10}}><span>Passwort</span>
@@ -504,37 +507,6 @@ function Login() {
             ? <><button className="btn small ghost" type="button" onClick={() => go('register')}>Neu hier? Konto erstellen</button>
                 <button className="btn small ghost" type="button" onClick={() => go('reset')}>Passwort vergessen</button></>
             : <button className="btn small ghost" type="button" onClick={() => go('login')}>Zurück zur Anmeldung</button>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VerifyEmail({user, onVerified}) {
-  const [busy, setBusy] = useState(false);
-  const check = async () => {
-    setBusy(true);
-    try {
-      await user.reload();
-      if (auth.currentUser?.emailVerified) { await auth.currentUser.getIdToken(true); onVerified(); }
-      else toast('Noch nicht bestätigt. Link in der E-Mail öffnen.');
-    } catch (_) { toast('Keine Verbindung'); }
-    setBusy(false);
-  };
-  const resend = async () => {
-    try { await user.sendEmailVerification(); toast('E-Mail erneut gesendet'); } catch (x) { toast(authErr(x.code)); }
-  };
-  useEffect(() => { const f = () => { if (!document.hidden) check(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, []);
-  return (
-    <div className="wrap narrow">
-      <div className="sheet">
-        <h2>E-Mail bestätigen</h2>
-        <p>Wir haben einen Link an <b>{user.email}</b> gesendet. Link öffnen, dann hierher zurückkommen.</p>
-        <p className="muted small">Nichts angekommen? Im Spam-Ordner nachsehen.</p>
-        <button className="btn primary full" disabled={busy} onClick={check}>Ich habe bestätigt</button>
-        <div className="row" style={{marginTop:12,justifyContent:'space-between'}}>
-          <button className="btn small ghost" onClick={resend}>Erneut senden</button>
-          <Logout/>
         </div>
       </div>
     </div>
@@ -905,43 +877,43 @@ function Heft({heftId, role, user, ausSig, ausName, onBack}) {
   );
 }
 
-/* ================= Azubi-Start ================= */
+/* ================= Azubi-Start: Zugang anfragen, Ausbilder gibt frei ================= */
 function AzubiHome({user}) {
-  const [state, setState] = useState('laden');
-  const email = (user.email || '').toLowerCase();
-  const check = useCallback(async () => {
-    setState('laden');
-    try {
-      const h = await db.collection('hefte').doc(user.uid).get();
-      if (h.exists) { setState('heft'); return; }
-      const inv = await db.collection('einladungen').doc(email).get();
-      if (!inv.exists) { setState('keine'); return; }
-      const i = inv.data();
-      await db.collection('hefte').doc(user.uid).set({
-        azubiUid: user.uid, azubiEmail: email, azubiVorname: i.vorname || '', azubiName: i.name || '',
-        ausbilderUid: i.ausbilderUid, ausbilderEmail: i.ausbilderEmail || '',
-        setupDone: false, azubiSig: null,
-        deckblatt: {vorname: i.vorname || '', name: i.name || '', betrieb: BETRIEB, ausbilder: i.ausbilderName || ''},
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      setState('heft');
-    } catch (e) { console.error(e); setState('fehler'); }
-  }, [user.uid, email]);
-  useEffect(() => { check(); }, [check]);
+  const [heft, setHeft] = useState(undefined);
+  const [anf, setAnf] = useState(undefined);
+  const [f, setF] = useState({vorname:'', name:''});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => db.collection('hefte').doc(user.uid).onSnapshot(s => setHeft(s.exists), () => setHeft(null)), [user.uid]);
+  useEffect(() => db.collection('anfragen').doc(user.uid).onSnapshot(s => setAnf(s.exists ? s.data() : false), () => setAnf(null)), [user.uid]);
 
-  if (state === 'heft') return <Heft key={user.uid} heftId={user.uid} role="azubi" user={user}/>;
-  return (
-    <div className="wrap narrow">
-      <div className="sheet">
-        {state === 'laden' && <p className="muted" style={{margin:0}}>Lädt …</p>}
-        {state === 'keine' && <><h2>Noch keine Einladung</h2>
-          <p>Für <b>{user.email}</b> gibt es noch kein Berichtsheft. Bitte deinen Ausbilder, dich mit genau dieser E-Mail einzuladen.</p></>}
-        {state === 'fehler' && <><h2>Laden fehlgeschlagen</h2><p className="muted">Internetverbindung prüfen.</p></>}
-        {state !== 'laden' && <div className="row" style={{justifyContent:'space-between'}}>
-          <button className="btn primary" onClick={check}>Erneut prüfen</button><Logout/></div>}
-      </div>
+  if (heft === true) return <Heft key={user.uid} heftId={user.uid} role="azubi" user={user}/>;
+  const send = async () => {
+    setBusy(true);
+    try {
+      await db.collection('anfragen').doc(user.uid).set({
+        uid: user.uid, email: (user.email || '').toLowerCase(), vorname: f.vorname.trim(), name: f.name.trim(),
+        status: 'offen', createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      toast('Anfrage gesendet');
+    } catch (_) { toast('Senden fehlgeschlagen'); }
+    setBusy(false);
+  };
+  const box = c => <div className="wrap narrow"><Top left={<b>Berichtsheft</b>} right={<Logout/>}/><div className="sheet">{c}</div></div>;
+  if (heft === undefined || anf === undefined) return <div className="wrap"><p className="muted">Lädt …</p></div>;
+  if (heft === null || anf === null) return box(<><h2>Laden fehlgeschlagen</h2><p className="muted">Internetverbindung prüfen und neu laden.</p></>);
+  if (anf && anf.status === 'offen') return box(<><h2>Wartet auf Freigabe</h2>
+    <p>Deine Anfrage ist bei deinem Ausbilder. Sobald er dich freigibt, öffnet sich hier dein Berichtsheft.</p>
+    <p className="muted small">{anf.vorname} {anf.name}, {user.email}</p></>);
+  return box(<>
+    <h2>Zugang anfragen</h2>
+    {anf && anf.status === 'abgelehnt' && <p className="err" style={{marginTop:0}}>Deine letzte Anfrage wurde abgelehnt. Bei Fragen deinen Ausbilder ansprechen.</p>}
+    <p className="muted">Dein Ausbilder bekommt einen Hinweis und gibt dein Berichtsheft frei.</p>
+    <div className="grid">
+      <label className="fld"><span>Vorname</span><input value={f.vorname} onChange={e => setF({...f, vorname: e.target.value})}/></label>
+      <label className="fld"><span>Name</span><input value={f.name} onChange={e => setF({...f, name: e.target.value})}/></label>
     </div>
-  );
+    <button className="btn primary full" disabled={busy || !f.vorname.trim() || !f.name.trim()} onClick={send}>Zugang anfragen</button>
+  </>);
 }
 
 /* ================= Ausbilder ================= */
@@ -953,91 +925,78 @@ function PendingCount({id}) {
   return n ? <span className="badge eingereicht">{n} offen</span> : n === 0 ? <span className="badge">Nichts offen</span> : null;
 }
 
-const inviteText = i => `Hallo ${i.vorname}, dein digitales Berichtsheft ist bereit. Öffne ${APP_URL}, tippe auf „Neu hier? Konto erstellen“ und registriere dich mit ${i.email}.`;
-async function shareInvite(i) {
-  const text = inviteText(i);
+async function shareAppLink() {
+  const text = `Dein digitales Berichtsheft: ${APP_URL} – „Neu hier? Konto erstellen“ antippen, mit deiner E-Mail registrieren und Zugang anfragen.`;
   if (navigator.share) { try { await navigator.share({text}); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(text); toast('Einladungstext kopiert'); } catch (_) { prompt('Einladungstext kopieren:', text); }
-}
-
-function InviteModal({user, ausName, onDone}) {
-  const [f, setF] = useState({vorname:'', name:'', email:''});
-  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [done, setDone] = useState(null);
-  const set = (k, v) => setF(p => ({...p, [k]: v}));
-  const email = f.email.trim().toLowerCase();
-  const ok = f.vorname.trim() && f.name.trim() && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  const create = async () => {
-    setBusy(true); setErr('');
-    try {
-      const i = {email, vorname: f.vorname.trim(), name: f.name.trim(), ausbilderUid: user.uid, ausbilderEmail: user.email, ausbilderName: ausName || '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()};
-      await db.collection('einladungen').doc(email).set(i);
-      setDone(i);
-    } catch (_) { setErr('Einladung nicht möglich. Diese E-Mail ist evtl. schon bei einem anderen Ausbilder eingeladen.'); }
-    setBusy(false);
-  };
-  return (
-    <div className="modal" onClick={e => e.target === e.currentTarget && onDone()}>
-      <div className="box">
-        {done ? <>
-          <h3>Eingeladen</h3>
-          <p>{done.vorname} kann sich jetzt mit <b>{done.email}</b> registrieren. Schick ihr den Link:</p>
-          <p className="invite">{inviteText(done)}</p>
-          <div className="row" style={{justifyContent:'flex-end'}}>
-            <button className="btn" onClick={onDone}>Fertig</button>
-            <button className="btn primary" onClick={() => shareInvite(done)}>Teilen</button>
-          </div>
-        </> : <>
-          <h3>Azubi einladen</h3>
-          <div className="grid">
-            <label className="fld"><span>Vorname</span><input value={f.vorname} onChange={e => set('vorname', e.target.value)}/></label>
-            <label className="fld"><span>Name</span><input value={f.name} onChange={e => set('name', e.target.value)}/></label>
-            <label className="fld wide"><span>E-Mail der Azubine (damit meldet sie sich an)</span><input type="email" value={f.email} onChange={e => set('email', e.target.value)}/></label>
-          </div>
-          {err && <p className="err">{err}</p>}
-          <div className="row" style={{justifyContent:'flex-end'}}>
-            <button className="btn" onClick={onDone}>Abbrechen</button>
-            <button className="btn primary" disabled={!ok || busy} onClick={create}>Einladen</button>
-          </div>
-        </>}
-      </div>
-    </div>
-  );
+  try { await navigator.clipboard.writeText(text); toast('Link kopiert'); } catch (_) { prompt('Link kopieren:', text); }
 }
 
 function AusbilderHome({user}) {
   const [sel, setSel] = useState(null);
   const [hefte, setHefte] = useState(null);
-  const [invites, setInvites] = useState([]);
+  const [anfragen, setAnfragen] = useState([]);
   const [prof, setProf] = useState({});
   const [nameDraft, setNameDraft] = useState(null);
   const [pad, setPad] = useState(false);
-  const [neu, setNeu] = useState(false);
   const meRef = db.collection('ausbilder').doc(user.uid);
   useEffect(() => db.collection('hefte').where('ausbilderUid', '==', user.uid).onSnapshot(
     qs => setHefte(qs.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => (a.azubiVorname || '').localeCompare(b.azubiVorname || ''))),
     () => setHefte([])), [user.uid]);
-  useEffect(() => db.collection('einladungen').where('ausbilderUid', '==', user.uid).onSnapshot(
-    qs => setInvites(qs.docs.map(d => ({id: d.id, ...d.data()}))), () => {}), [user.uid]);
+  useEffect(() => db.collection('anfragen').where('status', '==', 'offen').onSnapshot(
+    qs => setAnfragen(qs.docs.map(d => ({id: d.id, ...d.data()}))), () => {}), [user.uid]);
   useEffect(() => meRef.onSnapshot(s => setProf(s.exists ? s.data() : {}), () => {}), [user.uid]);
+  useEffect(() => { document.title = anfragen.length ? `(${anfragen.length}) Berichtsheft` : 'Berichtsheft'; }, [anfragen.length]);
 
   const ausSig = prof.sig || null, ausName = prof.name || '';
   if (sel) return <Heft heftId={sel} role="ausbilder" user={user} ausSig={ausSig} ausName={ausName} onBack={() => setSel(null)}/>;
-  const registered = new Set((hefte || []).map(h => (h.azubiEmail || '').toLowerCase()));
-  const openInv = invites.filter(i => !registered.has(i.id));
   const saveName = () => { meRef.set({name: nameDraft.trim()}, {merge: true}).then(() => toast('Name gespeichert')); setNameDraft(null); };
+
+  const freigeben = async a => {
+    try {
+      const vorhanden = await db.collection('hefte').doc(a.uid).get();
+      if (vorhanden.exists) { await db.collection('anfragen').doc(a.uid).delete(); toast('Hat bereits ein Berichtsheft'); return; }
+      const b = db.batch();
+      b.set(db.collection('hefte').doc(a.uid), {
+        azubiUid: a.uid, azubiEmail: a.email, azubiVorname: a.vorname, azubiName: a.name,
+        ausbilderUid: user.uid, ausbilderEmail: user.email, setupDone: false, azubiSig: null,
+        deckblatt: {vorname: a.vorname, name: a.name, betrieb: BETRIEB, ausbilder: ausName},
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      b.delete(db.collection('anfragen').doc(a.uid));
+      await b.commit();
+      toast(`${a.vorname} freigegeben`);
+    } catch (_) { toast('Freigabe fehlgeschlagen'); }
+  };
+  const ablehnen = a => {
+    if (!confirm(`Anfrage von ${a.vorname} ${a.name} ablehnen?`)) return;
+    db.collection('anfragen').doc(a.uid).update({status: 'abgelehnt'}).then(() => toast('Abgelehnt')).catch(() => toast('Nicht möglich'));
+  };
 
   return (
     <div className="wrap">
       <Top left={<b>Berichtshefte</b>} right={<><span className="muted small hide-s">{user.email}</span><Logout/></>}/>
       {!ausName && nameDraft === null && <div className="lockbar"><span>Trag deinen Namen ein. Er erscheint bei deiner Unterschrift.</span>
         <button className="btn small primary" onClick={() => setNameDraft('')}>Eintragen</button></div>}
+
+      {anfragen.length > 0 && <div className="anfragen">
+        <h3>{anfragen.length === 1 ? 'Neue Zugangsanfrage' : `${anfragen.length} neue Zugangsanfragen`}</h3>
+        {anfragen.map(a => (
+          <div key={a.id} className="anfrage">
+            <span><b>{a.vorname} {a.name}</b><br/><span className="muted small">{a.email}</span></span>
+            <span className="row">
+              <button className="btn small ghost" onClick={() => ablehnen(a)}>Ablehnen</button>
+              <button className="btn small primary" onClick={() => freigeben(a)}>Freigeben</button>
+            </span>
+          </div>
+        ))}
+      </div>}
+
       <div className="row" style={{justifyContent:'space-between',marginBottom:10}}>
         <h2 style={{margin:0}}>Meine Azubis</h2>
-        <button className="btn primary small" onClick={() => setNeu(true)}>+ Azubi einladen</button>
+        <button className="btn small" onClick={shareAppLink}>Link für Azubis teilen</button>
       </div>
       {hefte === null ? <p className="muted">Lädt …</p>
-        : hefte.length === 0 && openInv.length === 0 ? <div className="sheet"><p className="muted" style={{margin:0}}>Noch keine Azubis. Lade die erste ein.</p></div>
+        : hefte.length === 0 ? <div className="sheet"><p className="muted" style={{margin:0}}>Noch keine Azubis. Schick deiner Azubine den Link; ihre Anfrage erscheint dann hier oben.</p></div>
         : <div className="wlist" style={{marginTop:0}}>
             {hefte.map(h => (
               <button key={h.id} className="aitem" onClick={() => { setSel(h.id); window.scrollTo(0, 0); }}>
@@ -1046,16 +1005,8 @@ function AusbilderHome({user}) {
                 <PendingCount id={h.id}/>
               </button>
             ))}
-            {openInv.map(i => (
-              <div key={i.id} className="aitem inv">
-                <span><b>{i.vorname} {i.name}</b><br/><span className="muted small">Eingeladen, noch nicht registriert ({i.id})</span></span>
-                <span className="row">
-                  <button className="btn small" onClick={() => shareInvite({...i, email: i.id})}>Link teilen</button>
-                  <button className="btn small ghost" onClick={() => { if (confirm('Einladung löschen?')) db.collection('einladungen').doc(i.id).delete(); }}>Löschen</button>
-                </span>
-              </div>
-            ))}
           </div>}
+
       <div className="section sheet">
         <h3>Mein Profil</h3>
         {nameDraft !== null
@@ -1074,7 +1025,6 @@ function AusbilderHome({user}) {
       </div>
       {pad && <SigPad title="Meine Unterschrift" onClose={() => setPad(false)}
         onSave={img => { meRef.set({sig: img}, {merge: true}).then(() => toast('Unterschrift gespeichert')); setPad(false); }}/>}
-      {neu && <InviteModal user={user} ausName={ausName} onDone={() => setNeu(false)}/>}
     </div>
   );
 }
@@ -1117,13 +1067,11 @@ function RoleGate({user}) {
 /* ================= Start ================= */
 function App() {
   const [user, setUser] = useState(undefined);
-  const [verified, setVerified] = useState(false);
-  useEffect(() => CONFIG_OK ? auth.onAuthStateChanged(u => { setUser(u || null); setVerified(!!u?.emailVerified); }) : undefined, []);
+  useEffect(() => CONFIG_OK ? auth.onAuthStateChanged(u => setUser(u || null)) : undefined, []);
   let body;
   if (!CONFIG_OK) body = <div className="wrap narrow"><div className="sheet"><h2>Einrichtung fehlt</h2><p className="muted">FIREBASE_CONFIG oben in index.html eintragen.</p></div></div>;
   else if (user === undefined) body = <div className="wrap"><p className="muted">Lädt …</p></div>;
   else if (!user) body = <Login/>;
-  else if (!verified) body = <VerifyEmail user={user} onVerified={() => setVerified(true)}/>;
   else body = <RoleGate key={user.uid} user={user}/>;
   return <>{body}<Toast/></>;
 }
