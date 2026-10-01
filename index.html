@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B2A47">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Berichtsheft">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Berichtsheft</title>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F5F8;--sheet:#FFFFFF;--ink:#1B2A47;--muted:#5D6B82;--rule:#D6DEE8;
+  --accent:#2357C6;--ok:#2F7A55;--warn:#B07A0E;--soft:#E7EDF5;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0F1520;--sheet:#172031;--ink:#E4EAF3;--muted:#95A3B8;--rule:#2A374B;
+  --accent:#7EA6F5;--ok:#5FBF8C;--warn:#E0A93A;--soft:#1F2A3E;}}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.45 "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px calc(96px + env(safe-area-inset-bottom,0px))}
+.top{display:flex;justify-content:space-between;align-items:baseline;padding:4px 2px 14px}
+.top b{font-size:1.15rem}
+.top span{color:var(--muted);font-size:.9rem}
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:18px}
+h1{font-size:2rem;line-height:1.1;margin:0 0 8px}
+h2{font-size:1.35rem;margin:0 0 14px}
+h3{font-size:1.05rem;margin:0}
+.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:16px 0}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--muted)}
+.fld.wide{grid-column:1/-1}
+.fld input,.fld textarea,.abt input{background:var(--paper);border:1px solid var(--rule);border-radius:7px;padding:9px 10px;font-size:1rem;color:var(--ink);width:100%;resize:vertical}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+.btn{border:1px solid var(--rule);background:var(--sheet);border-radius:8px;padding:10px 14px;font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent}
+.btn.small{padding:6px 10px;font-size:.88rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* Woche */
+.wkhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.wkhead .nav{width:44px;height:44px;border-radius:50%;border:1px solid var(--rule);background:var(--sheet);font-size:1.4rem;line-height:1}
+.wkhead .nav:disabled{opacity:.3}
+.wkmid{flex:1;text-align:center}
+.wkmid .nr{font-size:1.9rem;font-weight:700;line-height:1}
+.wkmid .rng{color:var(--muted);font-size:.92rem}
+.badge{display:inline-block;font-size:.78rem;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--muted)}
+.badge.offen{color:var(--warn)}.badge.eingereicht{color:var(--accent)}.badge.bestaetigt{background:var(--ok);color:#fff}
+.abt{margin-bottom:12px}
+.abt label{font-size:.88rem;color:var(--muted)}
+.day{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.day header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 6px}
+.day header div{display:flex;gap:8px;align-items:baseline}
+.day .date{color:var(--muted);font-size:.85rem}
+.dtot{font-weight:700;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 14px 8px;scrollbar-width:none}
+.chip{border:1px solid var(--rule);background:transparent;border-radius:99px;padding:4px 11px;font-size:.84rem;white-space:nowrap;color:var(--muted)}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--sheet)}
+.lines{border-top:1px solid var(--rule)}
+.line{display:grid;grid-template-columns:1fr 64px 30px;align-items:start;border-bottom:1px solid var(--rule);
+  background:linear-gradient(90deg,transparent 33px,var(--accent) 33px,var(--accent) 34px,transparent 34px)}
+.line textarea{border:0;background:transparent;resize:none;padding:10px 8px 10px 44px;min-height:44px;overflow:hidden;line-height:1.4}
+.line .hrs{border:0;border-left:1px solid var(--rule);background:transparent;text-align:right;padding:10px 8px;height:100%;font-variant-numeric:tabular-nums;width:100%}
+.line .x{border:0;background:transparent;color:var(--muted);font-size:1.2rem;height:44px}
+.line.ro{grid-template-columns:1fr 64px}
+.add{border:0;background:transparent;color:var(--accent);font-weight:700;padding:9px 14px 11px 44px;width:100%;text-align:left}
+.t-urlaub .chips .on,.t-krank .chips .on,.t-feiertag .chips .on,.t-frei .chips .on{background:var(--muted);border-color:var(--muted)}
+.total{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--ink);color:var(--sheet);border-radius:10px;margin:14px 0}
+.total b{font-size:1.4rem;font-variant-numeric:tabular-nums}
+.sigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.sig{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.sig .who{font-size:.88rem;color:var(--muted)}
+.sig img{background:#fff;border-radius:6px;width:100%;height:70px;object-fit:contain;border:1px solid var(--rule)}
+.sig .when{font-size:.85rem;color:var(--muted)}
+.lockbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:var(--soft);margin-bottom:12px;font-size:.92rem}
+/* Übersicht */
+.spine{display:flex;flex-wrap:wrap;gap:3px;margin:12px 0 6px}
+.spine i{width:7px;height:26px;border-radius:2px;background:var(--rule)}
+.spine i.offen{background:var(--warn)}.spine i.eingereicht{background:var(--accent)}.spine i.bestaetigt{background:var(--ok)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.84rem;color:var(--muted);margin-bottom:14px}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;background:var(--c)}
+.wlist{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.witem{display:grid;grid-template-columns:52px 1fr auto auto;gap:10px;align-items:center;text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:9px;padding:10px 12px}
+.witem .n{font-weight:700;font-variant-numeric:tabular-nums}
+.witem .h{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.9rem}
+.section{margin-top:22px}
+/* Nav */
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:4px;background:var(--sheet);border-top:1px solid var(--rule);
+  padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px))}
+.tabs button{flex:1;max-width:200px;border:0;background:transparent;padding:10px;border-radius:8px;font-weight:700;color:var(--muted)}
+.tabs button.on{background:var(--soft);color:var(--ink)}
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(10,16,28,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+.modal .box{background:var(--sheet);width:100%;max-width:560px;border-radius:14px 14px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+@media (min-width:620px){.modal{align-items:center}.modal .box{border-radius:14px}}
+.pad{width:100%;height:190px;background:#fff;border:1px solid var(--rule);border-radius:8px;touch-action:none;display:block;margin:12px 0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));max-width:90vw;text-align:center;background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:99px;font-size:.9rem;z-index:30}
+.warnbar{background:var(--warn);color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:.92rem}
+@media (prefers-reduced-motion:no-preference){.modal .box{animation:up .18s ease-out}@keyframes up{from{transform:translateY(16px);opacity:0}}}
+/* Konto & Ausbilder */
+.wrap.narrow{max-width:440px;padding-top:10vh}
+.err{color:#C0392B;font-size:.92rem;margin:10px 0 0}
+.small{font-size:.86rem}
+.back{padding-left:0}
+.btn.full{width:100%}
+.inp{flex:1;min-width:180px;background:var(--paper);border:1px solid var(--rule);border-radius:7px;padding:8px 10px}
+.aitem{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;width:100%}
+.aitem.inv{border-style:dashed}
+.mysig{background:#fff;border:1px solid var(--rule);border-radius:8px;width:100%;max-width:320px;height:90px;object-fit:contain;display:block}
+.sig.hl{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.invite{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.92rem}
+.modal .grid{margin:12px 0}
+.box.center{text-align:center}
+@media (max-width:480px){.hide-s{display:none}}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+/* ================= Konfiguration ================= */
+const FIREBASE_CONFIG = {
+  apiKey: "HIER_EINTRAGEN",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+// Gleiche Liste in firestore.rules (isAusbilder) eintragen
+const AUSBILDER_EMAILS = ['deine.email@hetec-gmbh.de'];
+const BETRIEB = 'HeTec GmbH';
+
+const APP_URL = location.origin + location.pathname.replace(/index\.html$/, '');
+const CONFIG_OK = !FIREBASE_CONFIG.apiKey.includes('HIER');
+let auth, db;
+if (CONFIG_OK) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  auth.languageCode = 'de';
+  db = firebase.firestore();
+  db.enablePersistence({synchronizeTabs: true}).catch(() => {});
+}
+const isAusbilderEmail = e => AUSBILDER_EMAILS.map(x => x.toLowerCase()).includes((e || '').toLowerCase());
+
+const {useState, useEffect, useRef, useLayoutEffect, useMemo, useCallback} = React;
+const DAYS = [['mo','Montag'],['di','Dienstag'],['mi','Mittwoch'],['do','Donnerstag'],['fr','Freitag'],['sa','Samstag']];
+const TYPES = [['betrieb','Betrieb'],['schule','Berufsschule'],['urlaub','Urlaub'],['krank','Krank'],['feiertag','Feiertag'],['frei','Frei']];
+const AUTO = {urlaub:'Urlaub', krank:'Arbeitsunfähig', feiertag:'Feiertag', frei:'Frei'};
+const SIGS = [['azubi','Auszubildende/-r'],['ausbilder','Ausbilder/-in'],['vertreter','Gesetzliche/-r Vertreter/-in']];
+const STATUS = {leer:'Leer', offen:'In Arbeit', eingereicht:'Wartet auf Ausbilder', bestaetigt:'Bestätigt'};
+const DB_FIELDS = [
+  ['name','Name'],['vorname','Vorname'],['geburtsdatum','Geburtsdatum','date'],['adresse','Privatadresse','area'],
+  ['beruf','Ausbildungsberuf (inkl. Fachrichtung)','',true],['betrieb','Ausbildungsbetrieb'],
+  ['betriebAdresse','Anschrift des Ausbildungsbetriebes','area'],['ausbilder','Ausbilder/-in'],
+  ['beginn','Ausbildungsbeginn','date'],['ende','Ausbildungsende','date'],
+  ['termin1','Vorgesehener Termin für Zwischenprüfung bzw. Abschlussprüfung Teil 1','',true],
+  ['termin2','Vorgesehener Termin für Abschlussprüfung bzw. Abschlussprüfung Teil 2','',true]
+];
+const REQ = ['name','vorname','beruf','beginn'];
+const NOTES = [
+  'Die Vorlage der vollständigen Ausbildungsnachweise ist Zulassungsvoraussetzung zur Abschlussprüfung gemäß § 43 Abs. 1 Ziffer 2 Berufsbildungsgesetz.',
+  'Die Ausbildungsnachweise sind dem Prüfungsausschuss bei der Abschlussprüfung vorzulegen.',
+  'Die sachliche und zeitliche Gliederung der Ausbildung soll den Ausbildungsnachweisen beigefügt werden.'
+];
+const BESTAETIGUNG = 'Durch die nachfolgenden Unterschriften wird die Richtigkeit und Vollständigkeit der obigen Angaben bestätigt.';
+
+/* ================= Datum & Stunden ================= */
+const pad2 = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const parse = s => { if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const monday = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay()+6)%7)); };
+const de = d => d ? `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()}` : '';
+const deShort = d => `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.`;
+const weekNr = (wk, b) => Math.round((parse(wk) - monday(parse(b))) / (7*864e5)) + 1;
+const ausbJahr = (wk, b) => { const s = parse(b), w = parse(wk); let y = 1; while (y < 6 && w >= new Date(s.getFullYear()+y, s.getMonth(), s.getDate())) y++; return y; };
+const minorAt = (wk, g) => { const b = parse(g); if (!b) return false; return addDays(parse(wk), 5) < new Date(b.getFullYear()+18, b.getMonth(), b.getDate()); };
+const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+const fmtH = n => n ? n.toLocaleString('de-DE', {maximumFractionDigits: 2}) : '';
+const cleanHours = v => (v.replace(/[^0-9.,]/g, '').match(/^\d{0,2}(?:[.,]\d{0,2})?/) || [''])[0];
+const todayIso = () => iso(new Date());
+const clone = o => JSON.parse(JSON.stringify(o));
+
+const normDay = d => ({
+  typ: d?.typ || 'betrieb',
+  entries: Array.isArray(d?.entries) && d.entries.length
+    ? d.entries.map(e => ({text: String(e?.text ?? ''), h: String(e?.h ?? '')}))
+    : [{text:'', h:''}]
+});
+const normWeek = (w, abt) => ({
+  abteilung: w?.abteilung ?? (abt || ''),
+  days: Object.fromEntries(DAYS.map(([k]) => [k, normDay(w?.days?.[k])])),
+  sig: w?.sig || {}
+});
+const dayTotal = d => d.entries.reduce((s, e) => s + num(e.h), 0);
+const weekTotal = w => DAYS.reduce((s, [k]) => s + dayTotal(w.days[k]), 0);
+const statusOf = w => {
+  if (!w) return 'leer';
+  if (w.sig?.ausbilder) return 'bestaetigt';
+  if (w.sig?.azubi) return 'eingereicht';
+  const any = DAYS.some(([k]) => w.days[k].entries.some(e => e.text.trim() || num(e.h)));
+  return any ? 'offen' : 'leer';
+};
+const authErr = c => ({
+  'auth/invalid-credential':'E-Mail oder Passwort falsch.', 'auth/wrong-password':'E-Mail oder Passwort falsch.',
+  'auth/user-not-found':'E-Mail oder Passwort falsch.', 'auth/invalid-email':'E-Mail-Adresse ist ungültig.',
+  'auth/missing-email':'Bitte E-Mail eintragen.', 'auth/missing-password':'Bitte Passwort eintragen.',
+  'auth/email-already-in-use':'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.',
+  'auth/weak-password':'Passwort braucht mindestens 6 Zeichen.',
+  'auth/too-many-requests':'Zu viele Versuche. Bitte kurz warten.', 'auth/network-request-failed':'Keine Internetverbindung.'
+}[c] || 'Fehler: ' + c);
+
+/* ================= Kleine Bausteine ================= */
+let toastFn = () => {};
+const toast = t => toastFn(t);
+function Toast() {
+  const [m, setM] = useState('');
+  useEffect(() => { let t; toastFn = x => { setM(x); clearTimeout(t); t = setTimeout(() => setM(''), 2600); }; return () => { toastFn = () => {}; }; }, []);
+  return m ? <div className="toast" role="status">{m}</div> : null;
+}
+function useOnline() {
+  const [on, setOn] = useState(navigator.onLine);
+  useEffect(() => {
+    const a = () => setOn(true), b = () => setOn(false);
+    window.addEventListener('online', a); window.addEventListener('offline', b);
+    return () => { window.removeEventListener('online', a); window.removeEventListener('offline', b); };
+  }, []);
+  return on;
+}
+function AutoText(props) {
+  const r = useRef();
+  useLayoutEffect(() => { const t = r.current; t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }, [props.value]);
+  return <textarea ref={r} rows={1} {...props}/>;
+}
+function Top({left, right}) {
+  const online = useOnline();
+  return <div className="top"><div>{left}</div><div className="row">
+    {!online && <span className="badge offen" title="Änderungen werden synchronisiert, sobald wieder Internet da ist">Offline</span>}
+    {right}</div></div>;
+}
+const Logout = () => <button className="btn small ghost" onClick={() => auth.signOut()}>Abmelden</button>;
+
+function SigPad({title, onSave, onClose, askRemember}) {
+  const ref = useRef(); const dirty = useRef(false);
+  const [remember, setRemember] = useState(true);
+  useEffect(() => {
+    const c = ref.current, ctx = c.getContext('2d');
+    const style = () => { ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = ctx.fillStyle = '#13203a'; };
+    const setup = () => {
+      const r = c.getBoundingClientRect(); if (!r.width) return;
+      const dpr = window.devicePixelRatio || 1;
+      let snap = null;
+      if (dirty.current && c.width) { snap = document.createElement('canvas'); snap.width = c.width; snap.height = c.height; snap.getContext('2d').drawImage(c, 0, 0); }
+      c.width = Math.round(r.width*dpr); c.height = Math.round(r.height*dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); style();
+      if (snap) ctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, r.width, r.height);
+    };
+    setup();
+    const ro = new ResizeObserver(setup); ro.observe(c);
+    let on = false, last = null;
+    const pos = e => { const b = c.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+    const down = e => { e.preventDefault(); on = true; last = pos(e); dirty.current = true; try { c.setPointerCapture(e.pointerId); } catch (_) {} ctx.beginPath(); ctx.arc(last[0], last[1], 1.1, 0, 7); ctx.fill(); };
+    const move = e => { if (!on) return; e.preventDefault(); const p = pos(e); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; };
+    const up = () => { on = false; };
+    c.addEventListener('pointerdown', down); c.addEventListener('pointermove', move);
+    c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+    return () => { ro.disconnect(); c.removeEventListener('pointerdown', down); c.removeEventListener('pointermove', move); c.removeEventListener('pointerup', up); c.removeEventListener('pointercancel', up); };
+  }, []);
+  const clear = () => { const c = ref.current; c.getContext('2d').clearRect(0, 0, c.width, c.height); dirty.current = false; };
+  const save = () => {
+    if (!dirty.current) { toast('Bitte zuerst unterschreiben'); return; }
+    const c = ref.current, o = document.createElement('canvas');
+    o.width = 360; o.height = Math.max(60, Math.round(360*c.height/c.width));
+    o.getContext('2d').drawImage(c, 0, 0, o.width, o.height);
+    onSave(o.toDataURL('image/png'), remember);
+  };
+  return (
+    <div className="modal" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="box">
+        <h3>{title}</h3>
+        <canvas ref={ref} className="pad"/>
+        {askRemember && <label className="row muted small" style={{marginBottom:12}}>
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}/> Für weitere Wochen merken
+        </label>}
+        <div className="row" style={{justifyContent:'space-between'}}>
+          <button className="btn ghost" onClick={clear}>Löschen</button>
+          <div className="row">
+            <button className="btn" onClick={onClose}>Abbrechen</button>
+            <button className="btn primary" onClick={save}>Unterschreiben</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= PDF (Format wie IHK-Vorlage) ================= */
+const CP1252 = new Set('€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ');
+const pdfText = s => String(s ?? '').replace(/\r/g, '').split('').map(ch => {
+  const c = ch.charCodeAt(0);
+  if (ch === '\n' || (c >= 32 && c < 127) || (c >= 160 && c < 256) || CP1252.has(ch)) return ch;
+  return '';
+}).join('');
+
+function buildPdf(heft, weeks, job) {
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'a4'});
+  const M = 12, W = 210 - 2*M, BOTTOM = 297 - 12, P = 2;
+  const dbl = heft.deckblatt || {};
+  let first = true;
+  const newPage = () => { if (!first) doc.addPage(); first = false; };
+  const lh = fs => fs * 0.3528 * 1.2;
+  const font = (fs, bold) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(fs); };
+  const wrap = (s, w, fs, bold) => { font(fs, bold); return doc.splitTextToSize(pdfText(s), w); };
+  const box = (x, y, w, h, fill) => { doc.setDrawColor(0); doc.setLineWidth(0.25); if (fill) { doc.setFillColor(238, 238, 238); doc.rect(x, y, w, h, 'FD'); } else doc.rect(x, y, w, h); };
+  const put = (lines, x, y, fs, bold, alignRightW) => {
+    if (!lines || (Array.isArray(lines) && !lines.length)) return;
+    font(fs, bold);
+    if (alignRightW) doc.text(lines, x + alignRightW, y, {baseline:'top', align:'right', lineHeightFactor:1.2});
+    else doc.text(lines, x, y, {baseline:'top', lineHeightFactor:1.2});
+  };
+
+  if (job.deckblatt) {
+    newPage();
+    let y = M + 4;
+    put('Deckblatt Ausbildungsnachweise', M, y, 15, true); y += 10;
+    const c1 = W*0.42, c2 = W - c1, fs = 10;
+    DB_FIELDS.forEach(([k, l, t]) => {
+      const lab = wrap(l + ':', c1 - 2*P, fs, true);
+      const val = wrap(t === 'date' ? de(parse(dbl[k])) : (dbl[k] || ''), c2 - 2*P, fs, false);
+      const h = Math.max(8, Math.max(lab.length, val.length)*lh(fs) + 2*P);
+      box(M, y, c1, h, true); box(M + c1, y, c2, h, false);
+      put(lab, M + P, y + P, fs, true); put(val, M + c1 + P, y + P, fs, false);
+      y += h;
+    });
+    y += 6;
+    NOTES.forEach(n => { const ls = wrap(n, W - 6, 10, false); put('•', M + 1, y, 10, false); put(ls, M + 5, y, 10, false); y += ls.length*lh(10) + 2; });
+  }
+
+  const week = (k, w, fs, draw) => {
+    const m = parse(k), L = lh(fs), rowH = Math.max(7.5, L + 2*P);
+    let y = M + 4;
+    if (draw) put('Ausbildungsnachweis', M, y, 15, true);
+    y += 10;
+    const cw = [50, 12, 46, 29, 11, 38];
+    const xs = cw.reduce((a, c, i) => { a.push(a[i] + c); return a; }, [M]);
+    const spanRow = (label, value) => {
+      const val = wrap(value, W - cw[0] - 2*P, fs, false);
+      const h = Math.max(rowH, val.length*L + 2*P);
+      if (draw) { box(M, y, cw[0], h, true); box(xs[1], y, W - cw[0], h, false); put(label, M + P, y + P, fs, true); put(val, xs[1] + P, y + P, fs, false); }
+      y += h;
+    };
+    spanRow('Name:', `${dbl.vorname || ''} ${dbl.name || ''}`.trim());
+    spanRow('Ausbildungsabteilung:', w.abteilung || '');
+    const parts = [['Nr.', true], [String(weekNr(k, dbl.beginn)), false], ['Ausbildungswoche vom', true], [de(m), false], ['bis', true], [de(addDays(m, 5)), false]];
+    if (draw) parts.forEach(([s, b], i) => { box(xs[i], y, cw[i], rowH, b); put(s, xs[i] + P, y + P, fs, b); });
+    y += rowH;
+    spanRow('Ausbildungsjahr', String(ausbJahr(k, dbl.beginn)));
+    y += 3;
+
+    const dw = [30, 112, 22, 22], dx = [M, M + 30, M + 142, M + 164];
+    const head = [wrap('Tag', dw[0] - 2*P, fs, true),
+      wrap('Ausgeführte betriebliche Tätigkeiten, Unterweisungen, Berufsschulunterricht usw.', dw[1] - 2*P, fs, true),
+      ['Einzel-', 'stunden'], ['Gesamt-', 'stunden']];
+    const hh = Math.max(...head.map(h => h.length))*L + 2*P;
+    if (draw) head.forEach((h, i) => { box(dx[i], y, dw[i], hh, true); put(h, dx[i] + P, y + P, fs, true, i >= 2 ? dw[i] - 2*P : 0); });
+    y += hh;
+
+    const dateFs = Math.max(6, fs - 1.5);
+    DAYS.forEach(([dk, label], di) => {
+      const d = w.days[dk];
+      const rows = d.entries.map(e => ({lines: wrap(e.text, dw[1] - 2*P, fs, false), h: e.h}));
+      const hs = rows.map(r => Math.max(rowH, r.lines.length*L + 2*P));
+      const need = L + lh(dateFs) + 2*P;
+      const sum = hs.reduce((a, b) => a + b, 0);
+      if (sum < need) hs[hs.length - 1] += need - sum;
+      const total = Math.max(sum, need);
+      if (draw) {
+        box(dx[0], y, dw[0], total, false);
+        put(label, dx[0] + P, y + P, fs, false);
+        put(de(addDays(m, di)), dx[0] + P, y + P + L, dateFs, false);
+        let yy = y;
+        rows.forEach((r, i) => {
+          box(dx[1], yy, dw[1], hs[i], false); box(dx[2], yy, dw[2], hs[i], false);
+          put(r.lines, dx[1] + P, yy + P, fs, false);
+          put(fmtH(num(r.h)), dx[2] + P, yy + P, fs, false, dw[2] - 2*P);
+          yy += hs[i];
+        });
+        box(dx[3], y, dw[3], total, false);
+        put(fmtH(dayTotal(d)), dx[3] + P, y + P, fs, false, dw[3] - 2*P);
+      }
+      y += total;
+    });
+    if (draw) {
+      box(M, y, dw[0] + dw[1] + dw[2], rowH, false); box(dx[3], y, dw[3], rowH, false);
+      put('Wochenstunden:', M + P, y + P, fs, true, dw[0] + dw[1] + dw[2] - 2*P);
+      put(fmtH(weekTotal(w)), dx[3] + P, y + P, fs, true, dw[3] - 2*P);
+    }
+    y += rowH + 4;
+
+    const conf = wrap(BESTAETIGUNG, W, fs, false);
+    if (draw) put(conf, M, y, fs, false);
+    y += conf.length*L + 3;
+
+    const gap = 4, bw = (W - 2*gap)/3, bh = 30, sfs = Math.min(fs, 9);
+    if (draw) SIGS.forEach(([s, l], i) => {
+      const x = M + i*(bw + gap), v = w.sig?.[s];
+      box(x, y, bw, bh, false);
+      put('Datum: ' + (v ? de(parse(v.date)) : ''), x + P, y + P, sfs, false);
+      const lineY = y + bh - P - lh(sfs) - 1.5;
+      if (v?.img) {
+        try {
+          const pr = doc.getImageProperties(v.img), maxW = bw - 2*P, maxH = lineY - (y + P + lh(sfs) + 1) - 1;
+          const sc = Math.min(maxW/pr.width, maxH/pr.height), iw = pr.width*sc, ih = pr.height*sc;
+          doc.addImage(v.img, 'PNG', x + P, lineY - ih - 0.5, iw, ih);
+        } catch (_) {}
+      }
+      doc.setLineWidth(0.25); doc.line(x + P, lineY, x + bw - P, lineY);
+      put(l, x + P, lineY + 1, sfs, false);
+    });
+    y += bh;
+    return y <= BOTTOM;
+  };
+
+  job.weeks.forEach(k => {
+    const w = normWeek(weeks[k], dbl.abteilung);
+    let fs = 10;
+    while (fs > 6.5 && !week(k, w, fs, false)) fs -= 0.5;
+    newPage(); week(k, w, fs, true);
+  });
+  return doc;
+}
+
+async function deliverPdf(doc, name) {
+  const blob = doc.output('blob');
+  const touch = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (touch && navigator.canShare) {
+    const file = new File([blob], name, {type:'application/pdf'});
+    if (navigator.canShare({files:[file]})) {
+      try { await navigator.share({files:[file], title:name}); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+const fileSafe = s => pdfText(s).replace(/[^\wäöüÄÖÜß-]+/g, '_').replace(/^_+|_+$/g, '');
+
+/* ================= Anmeldung ================= */
+function Login() {
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState(''); const [pw, setPw] = useState(''); const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  const go = m => { setMode(m); setErr(''); };
+  const submit = async e => {
+    e.preventDefault(); setErr('');
+    const em = email.trim();
+    if (mode === 'register' && pw !== pw2) { setErr('Passwörter stimmen nicht überein.'); return; }
+    setBusy(true);
+    try {
+      if (mode === 'login') await auth.signInWithEmailAndPassword(em, pw);
+      else if (mode === 'register') { const c = await auth.createUserWithEmailAndPassword(em, pw); await c.user.sendEmailVerification(); }
+      else { await auth.sendPasswordResetEmail(em); toast('E-Mail zum Zurücksetzen gesendet'); go('login'); }
+    } catch (x) { setErr(authErr(x.code)); }
+    setBusy(false);
+  };
+  return (
+    <div className="wrap narrow">
+      <div className="sheet">
+        <h1>Berichtsheft</h1>
+        <p className="muted">{mode === 'login' ? 'Mit deiner E-Mail anmelden.' : mode === 'register' ? 'Konto mit der E-Mail erstellen, an die du eingeladen wurdest.' : 'Link zum Zurücksetzen per E-Mail anfordern.'}</p>
+        <form onSubmit={submit}>
+          <label className="fld"><span>E-Mail</span><input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required/></label>
+          {mode !== 'reset' && <label className="fld" style={{marginTop:10}}><span>Passwort</span>
+            <input type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={pw} onChange={e => setPw(e.target.value)} required/></label>}
+          {mode === 'register' && <label className="fld" style={{marginTop:10}}><span>Passwort wiederholen</span>
+            <input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} required/></label>}
+          {err && <p className="err">{err}</p>}
+          <button className="btn primary full" style={{marginTop:16}} disabled={busy} type="submit">
+            {mode === 'login' ? 'Anmelden' : mode === 'register' ? 'Konto erstellen' : 'Link senden'}</button>
+        </form>
+        <div className="row" style={{marginTop:14,justifyContent:'space-between'}}>
+          {mode === 'login'
+            ? <><button className="btn small ghost" type="button" onClick={() => go('register')}>Neu hier? Konto erstellen</button>
+                <button className="btn small ghost" type="button" onClick={() => go('reset')}>Passwort vergessen</button></>
+            : <button className="btn small ghost" type="button" onClick={() => go('login')}>Zurück zur Anmeldung</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VerifyEmail({user, onVerified}) {
+  const [busy, setBusy] = useState(false);
+  const check = async () => {
+    setBusy(true);
+    try {
+      await user.reload();
+      if (auth.currentUser?.emailVerified) { await auth.currentUser.getIdToken(true); onVerified(); }
+      else toast('Noch nicht bestätigt. Link in der E-Mail öffnen.');
+    } catch (_) { toast('Keine Verbindung'); }
+    setBusy(false);
+  };
+  const resend = async () => {
+    try { await user.sendEmailVerification(); toast('E-Mail erneut gesendet'); } catch (x) { toast(authErr(x.code)); }
+  };
+  useEffect(() => { const f = () => { if (!document.hidden) check(); }; document.addEventListener('visibilitychange', f); return () => document.removeEventListener('visibilitychange', f); }, []);
+  return (
+    <div className="wrap narrow">
+      <div className="sheet">
+        <h2>E-Mail bestätigen</h2>
+        <p>Wir haben einen Link an <b>{user.email}</b> gesendet. Link öffnen, dann hierher zurückkommen.</p>
+        <p className="muted small">Nichts angekommen? Im Spam-Ordner nachsehen.</p>
+        <button className="btn primary full" disabled={busy} onClick={check}>Ich habe bestätigt</button>
+        <div className="row" style={{marginTop:12,justifyContent:'space-between'}}>
+          <button className="btn small ghost" onClick={resend}>Erneut senden</button>
+          <Logout/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= Deckblatt ================= */
+function DeckblattForm({initial, onSave, setup}) {
+  const [f, setF] = useState({...initial});
+  const missing = REQ.filter(k => !String(f[k] || '').trim());
+  const badDates = f.beginn && f.ende && f.ende <= f.beginn;
+  const set = (k, v) => setF(p => ({...p, [k]: v}));
+  return (
+    <div className="sheet">
+      {setup ? <><h1>Berichtsheft</h1><p className="muted">Deckblatt einmal ausfüllen. Änderungen später unter „Deckblatt“.</p></>
+             : <h2>Deckblatt</h2>}
+      <div className="grid">
+        {DB_FIELDS.map(([k, l, t, wide]) => (
+          <label key={k} className={'fld' + (t === 'area' || wide ? ' wide' : '')}>
+            <span>{l}{REQ.includes(k) ? ' *' : ''}</span>
+            {t === 'area'
+              ? <textarea rows={2} value={f[k] || ''} onChange={e => set(k, e.target.value)}/>
+              : <input type={t || 'text'} value={f[k] || ''} onChange={e => set(k, e.target.value)}/>}
+          </label>
+        ))}
+        <label className="fld wide">
+          <span>Ausbildungsabteilung (Vorgabe für neue Wochen)</span>
+          <input value={f.abteilung || ''} onChange={e => set('abteilung', e.target.value)}/>
+        </label>
+      </div>
+      {badDates && <p className="err">Ausbildungsende muss nach dem Beginn liegen.</p>}
+      <button className="btn primary" disabled={missing.length > 0 || badDates} onClick={() => onSave(f)}>
+        {setup ? 'Berichtsheft starten' : 'Deckblatt speichern'}
+      </button>
+    </div>
+  );
+}
+
+/* ================= Tag ================= */
+function DayCard({label, date, day, locked, onChange}) {
+  const tot = dayTotal(day);
+  const setTyp = t => onChange(d => {
+    d.typ = t;
+    const auto = Object.values(AUTO);
+    if (AUTO[t]) { if (d.entries.every(e => !e.text.trim() || auto.includes(e.text))) d.entries = [{text: AUTO[t], h: d.entries[0]?.h || ''}]; }
+    else d.entries.forEach(e => { if (auto.includes(e.text)) e.text = ''; });
+    return d;
+  });
+  return (
+    <section className={'day t-' + day.typ}>
+      <header><div><h3>{label}</h3><span className="date">{de(date)}</span></div><span className="dtot">{tot ? fmtH(tot) + ' Std.' : ''}</span></header>
+      {!locked && <div className="chips">{TYPES.map(([t, l]) =>
+        <button key={t} className={'chip' + (day.typ === t ? ' on' : '')} onClick={() => setTyp(t)}>{l}</button>)}</div>}
+      <div className="lines">
+        {day.entries.map((e, i) => (
+          <div className={'line' + (locked ? ' ro' : '')} key={i}>
+            <AutoText value={e.text} readOnly={locked} placeholder={locked ? '' : 'Tätigkeit, Unterweisung, Unterricht …'}
+              onChange={ev => { const v = ev.target.value; onChange(d => { d.entries[i].text = v; return d; }); }}/>
+            <input className="hrs" inputMode="decimal" placeholder={locked ? '' : 'Std.'} value={e.h} readOnly={locked} aria-label={'Stunden ' + label}
+              onChange={ev => { const v = cleanHours(ev.target.value); onChange(d => { d.entries[i].h = v; return d; }); }}/>
+            {!locked && <button className="x" aria-label="Zeile entfernen" disabled={day.entries.length < 2} style={{visibility: day.entries.length < 2 ? 'hidden' : 'visible'}}
+              onClick={() => onChange(d => { d.entries.splice(i, 1); return d; })}>×</button>}
+          </div>
+        ))}
+      </div>
+      {!locked && <button className="add" onClick={() => onChange(d => { d.entries.push({text:'', h:''}); return d; })}>+ Tätigkeit</button>}
+    </section>
+  );
+}
+
+/* ================= Woche ================= */
+function WeekView({role, heft, wk, setWk, minWk, w, act, ausSig, onPdf}) {
+  const dbl = heft.deckblatt;
+  const mon = parse(wk);
+  const st = statusOf(w);
+  const isAzubi = role === 'azubi';
+  const locked = !isAzubi || !!w.sig.azubi;
+  const minor = minorAt(wk, dbl.geburtsdatum);
+  const [pad, setPad] = useState(null);
+  const today = iso(monday(new Date()));
+  const sig = w.sig;
+
+  const azubiSign = useSaved => {
+    const leer = DAYS.filter(([k]) => !w.days[k].entries.some(e => e.text.trim())).map(([, l]) => l);
+    if (leer.length && !confirm(`Ohne Eintrag: ${leer.join(', ')}.\nTrotzdem unterschreiben?`)) return;
+    if (useSaved) act.sign('azubi', heft.azubiSig, false); else setPad('azubi');
+  };
+
+  const sigBody = (s, l) => {
+    const v = sig[s];
+    if (v) return <>
+      <img src={v.img} alt={'Unterschrift ' + l}/>
+      <div className="row" style={{justifyContent:'space-between'}}>
+        <span className="when">{de(parse(v.date))}{v.name ? ', ' + v.name : ''}</span>
+        {isAzubi && s === 'vertreter' && !sig.ausbilder && <button className="btn small ghost" onClick={() => act.unsign('vertreter')}>Entfernen</button>}
+        {!isAzubi && s === 'ausbilder' && <button className="btn small ghost" onClick={() => act.unsign('ausbilder')}>Zurücknehmen</button>}
+      </div></>;
+    if (s === 'azubi') return isAzubi
+      ? <div className="row">
+          {heft.azubiSig && <button className="btn primary small" onClick={() => azubiSign(true)}>Unterschreiben</button>}
+          <button className={'btn small' + (heft.azubiSig ? '' : ' primary')} onClick={() => azubiSign(false)}>{heft.azubiSig ? 'Neu zeichnen' : 'Unterschreiben'}</button>
+        </div>
+      : <span className="muted small">Noch nicht unterschrieben</span>;
+    if (s === 'ausbilder') return isAzubi
+      ? <span className="muted small">{sig.azubi ? 'Wartet auf Bestätigung' : 'Nach deiner Unterschrift'}</span>
+      : sig.azubi
+        ? <div className="row">
+            {ausSig && <button className="btn primary small" onClick={() => act.sign('ausbilder', ausSig, false)}>Bestätigen</button>}
+            <button className={'btn small' + (ausSig ? '' : ' primary')} onClick={() => setPad('ausbilder')}>{ausSig ? 'Neu zeichnen' : 'Unterschreiben'}</button>
+          </div>
+        : <span className="muted small">Azubi hat noch nicht unterschrieben</span>;
+    return isAzubi && !sig.ausbilder
+      ? <button className="btn small" disabled={!sig.azubi} onClick={() => setPad('vertreter')}>{sig.azubi ? 'Unterschreiben' : 'Erst Azubi-Unterschrift'}</button>
+      : <span className="muted small">Nicht unterschrieben</span>;
+  };
+
+  return (
+    <>
+      <div className="wkhead">
+        <button className="nav" aria-label="Vorherige Woche" disabled={wk <= minWk} onClick={() => setWk(iso(addDays(mon, -7)))}>‹</button>
+        <div className="wkmid">
+          <div className="nr">Woche {weekNr(wk, dbl.beginn)}</div>
+          <div className="rng">{deShort(mon)} – {de(addDays(mon, 5))}, {ausbJahr(wk, dbl.beginn)}. Ausbildungsjahr</div>
+          <div className="row" style={{marginTop:6,justifyContent:'center'}}>
+            <span className={'badge ' + st}>{STATUS[st]}</span>
+            {wk !== today && today >= minWk && <button className="badge" style={{border:0}} onClick={() => setWk(today)}>Aktuelle Woche</button>}
+          </div>
+        </div>
+        <button className="nav" aria-label="Nächste Woche" onClick={() => setWk(iso(addDays(mon, 7)))}>›</button>
+      </div>
+
+      {isAzubi && sig.azubi && <div className="lockbar">
+        <span>{sig.ausbilder ? 'Vom Ausbilder bestätigt.' : 'Unterschrieben. Zum Ändern zurückziehen.'}</span>
+        {!sig.ausbilder && <button className="btn small" onClick={() => act.unsign('azubi')}>Zurückziehen</button>}
+      </div>}
+      {!isAzubi && sig.azubi && <div className="lockbar">
+        <span>{sig.ausbilder ? 'Bestätigt.' : 'Bereit zur Bestätigung.'}</span>
+        <button className="btn small" onClick={act.reopen}>Zur Korrektur zurückgeben</button>
+      </div>}
+
+      <div className="abt">
+        <label htmlFor="abt">Ausbildungsabteilung</label>
+        <input id="abt" value={w.abteilung} readOnly={locked} onChange={e => { const v = e.target.value; act.edit(x => { x.abteilung = v; return x; }); }}/>
+      </div>
+
+      {DAYS.map(([k, l], i) => (
+        <DayCard key={wk + k} label={l} date={addDays(mon, i)} day={w.days[k]} locked={locked}
+          onChange={fn => act.edit(x => { x.days[k] = fn(x.days[k]); return x; })}/>
+      ))}
+
+      <div className="total"><span>Wochenstunden</span><b>{fmtH(weekTotal(w)) || '0'}</b></div>
+
+      <div className="sigs">
+        {SIGS.filter(([s]) => s !== 'vertreter' || minor || sig.vertreter).map(([s, l]) => (
+          <div className={'sig' + (!isAzubi && s === 'ausbilder' && sig.azubi && !sig.ausbilder ? ' hl' : '')} key={s}>
+            <span className="who">{l}</span>{sigBody(s, l)}
+          </div>
+        ))}
+      </div>
+
+      <div className="row" style={{marginTop:16}}>
+        <button className="btn" onClick={() => onPdf({deckblatt:false, weeks:[wk]})}>Woche als PDF</button>
+      </div>
+
+      {pad && <SigPad title={SIGS.find(x => x[0] === pad)[1]} askRemember={pad !== 'vertreter'}
+        onClose={() => setPad(null)} onSave={(img, rem) => { act.sign(pad, img, rem); setPad(null); }}/>}
+    </>
+  );
+}
+
+/* ================= Übersicht ================= */
+function Overview({role, heft, weeks, minWk, open, onPdf, act, ausSig}) {
+  const dbl = heft.deckblatt;
+  const endMon = parse(dbl.ende) ? monday(parse(dbl.ende)) : null;
+  let last = monday(new Date()); if (endMon && endMon < last) last = endMon;
+  const keys = [];
+  for (let d = parse(minWk); iso(d) <= iso(last); d = addDays(d, 7)) keys.push(iso(d));
+  Object.keys(weeks).forEach(k => { if (k >= minWk && !keys.includes(k)) keys.push(k); });
+  keys.sort();
+  const sts = keys.map(k => statusOf(weeks[k]));
+  const cnt = s => sts.filter(x => x === s).length;
+  const pending = keys.filter((k, i) => sts[i] === 'eingereicht');
+  return (
+    <>
+      <h2>{cnt('bestaetigt')} von {keys.length} Wochen bestätigt</h2>
+      <div className="spine" aria-hidden="true">{sts.map((s, i) => <i key={i} className={s}/>)}</div>
+      <div className="legend">
+        <span style={{'--c':'var(--ok)'}}>Bestätigt {cnt('bestaetigt')}</span>
+        <span style={{'--c':'var(--accent)'}}>Wartet auf Ausbilder {cnt('eingereicht')}</span>
+        <span style={{'--c':'var(--warn)'}}>In Arbeit {cnt('offen')}</span>
+        <span style={{'--c':'var(--rule)'}}>Leer {cnt('leer')}</span>
+      </div>
+      {role === 'ausbilder' && pending.length > 0 && <div className="lockbar">
+        <span>{pending.length} {pending.length === 1 ? 'Woche wartet' : 'Wochen warten'} auf Bestätigung.</span>
+        {ausSig ? <button className="btn primary small" onClick={() => { if (confirm(`${pending.length} ${pending.length === 1 ? 'Woche' : 'Wochen'} mit deiner gespeicherten Unterschrift bestätigen?`)) act.confirmAll(pending); }}>Alle bestätigen</button>
+                : <button className="btn small" onClick={() => open(pending[0])}>Erste öffnen</button>}
+      </div>}
+      <div className="row">
+        <button className="btn primary" onClick={() => onPdf({deckblatt:true, weeks:keys})}>Komplett als PDF</button>
+        <button className="btn" onClick={() => onPdf({deckblatt:false, weeks:keys.filter((k, i) => sts[i] === 'bestaetigt')})}>Nur bestätigte</button>
+      </div>
+      <div className="wlist">
+        {keys.slice().reverse().map(k => {
+          const w = weeks[k], s = statusOf(w), m = parse(k), t = w ? weekTotal(w) : 0;
+          return (
+            <button className="witem" key={k} onClick={() => open(k)}>
+              <span className="n">Nr. {weekNr(k, dbl.beginn)}</span>
+              <span>{deShort(m)} – {de(addDays(m, 5))}</span>
+              <span className="h">{t ? fmtH(t) + ' Std.' : ''}</span>
+              <span className={'badge ' + s}>{STATUS[s]}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/* ================= Berichtsheft (Azubi + Ausbilder) ================= */
+function Heft({heftId, role, user, ausSig, ausName, onBack}) {
+  const ref = useMemo(() => db.collection('hefte').doc(heftId), [heftId]);
+  const wref = k => ref.collection('wochen').doc(k);
+  const [heft, setHeft] = useState(null);
+  const [remote, setRemote] = useState({});
+  const [local, setLocal] = useState({});
+  const localRef = useRef({}); const timers = useRef({});
+  const [tab, setTab] = useState('woche');
+  const [wk, setWk] = useState(iso(monday(new Date())));
+  const [busy, setBusy] = useState(false);
+
+  const setLocalMap = m => { localRef.current = m; setLocal(m); };
+  const dropLocal = k => { if (!(k in localRef.current)) return; const c = {...localRef.current}; delete c[k]; setLocalMap(c); };
+
+  const flush = k => {
+    clearTimeout(timers.current[k]); delete timers.current[k];
+    const w = localRef.current[k]; if (!w) return;
+    wref(k).set({abteilung: w.abteilung, days: w.days}, {merge: true})
+      .catch(() => { toast('Nicht gespeichert: Woche ist gesperrt'); dropLocal(k); });
+  };
+  const flushAll = () => Object.keys(timers.current).forEach(flush);
+
+  useEffect(() => ref.onSnapshot(s => setHeft(s.exists ? s.data() : false), () => setHeft(false)), [ref]);
+  useEffect(() => ref.collection('wochen').onSnapshot(qs => {
+    const o = {}; qs.forEach(d => { o[d.id] = d.data(); }); setRemote(o);
+    const c = {...localRef.current}; let ch = false;
+    Object.keys(c).forEach(k => {
+      const r = o[k];
+      if (timers.current[k] || !r) return;
+      if (JSON.stringify([r.abteilung ?? '', normWeek(r).days]) === JSON.stringify([c[k].abteilung, c[k].days])) { delete c[k]; ch = true; }
+    });
+    if (ch) setLocalMap(c);
+  }, () => toast('Keine Berechtigung')), [ref]);
+  useEffect(() => {
+    const f = () => { if (document.hidden) flushAll(); };
+    document.addEventListener('visibilitychange', f); window.addEventListener('pagehide', flushAll);
+    return () => { document.removeEventListener('visibilitychange', f); window.removeEventListener('pagehide', flushAll); flushAll(); };
+  }, []);
+
+  const dbl = heft?.deckblatt || {};
+  const minWk = parse(dbl.beginn) ? iso(monday(parse(dbl.beginn))) : '';
+  useEffect(() => { if (minWk && wk < minWk) setWk(minWk); }, [minWk, wk]);
+
+  const weeks = useMemo(() => {
+    const o = {};
+    new Set([...Object.keys(remote), ...Object.keys(local)]).forEach(k => {
+      const l = local[k], r = remote[k];
+      o[k] = l ? {...l, sig: r?.sig || {}} : normWeek(r, '');
+    });
+    return o;
+  }, [remote, local]);
+
+  const sigName = role === 'ausbilder' ? (ausName || dbl.ausbilder || user.email) : '';
+  const act = {
+    edit: fn => {
+      if (role !== 'azubi') return;
+      const cur = clone(localRef.current[wk] || weeks[wk] || normWeek(null, dbl.abteilung));
+      setLocalMap({...localRef.current, [wk]: fn(cur)});
+      clearTimeout(timers.current[wk]);
+      timers.current[wk] = setTimeout(() => flush(wk), 600);
+    },
+    sign: (who, img, remember) => {
+      const date = todayIso();
+      if (who === 'ausbilder') {
+        wref(wk).update({'sig.ausbilder': {img, date, name: sigName}})
+          .then(() => toast('Bestätigt')).catch(() => toast('Bestätigen fehlgeschlagen'));
+        if (remember) db.collection('ausbilder').doc(user.uid).set({sig: img}, {merge: true});
+        return;
+      }
+      if (who === 'azubi') {
+        clearTimeout(timers.current[wk]); delete timers.current[wk];
+        const w = localRef.current[wk] || weeks[wk] || normWeek(null, dbl.abteilung);
+        wref(wk).set({abteilung: w.abteilung, days: w.days, sig: {azubi: {img, date}}}, {merge: true})
+          .catch(() => toast('Unterschrift fehlgeschlagen'));
+        dropLocal(wk);
+        if (remember) ref.update({azubiSig: img});
+      } else {
+        wref(wk).set({sig: {[who]: {img, date}}}, {merge: true}).catch(() => toast('Unterschrift fehlgeschlagen'));
+      }
+      toast('Unterschrieben');
+    },
+    unsign: who => wref(wk).update({['sig.' + who]: firebase.firestore.FieldValue.delete()}).catch(() => toast('Nicht erlaubt')),
+    reopen: () => {
+      if (confirm('Woche zur Korrektur zurückgeben? Alle Unterschriften dieser Woche werden entfernt.'))
+        wref(wk).update({sig: {}}).then(() => toast('Zurückgegeben')).catch(() => toast('Nicht erlaubt'));
+    },
+    confirmAll: async ks => {
+      const date = todayIso();
+      try {
+        for (let i = 0; i < ks.length; i += 100) {
+          const b = db.batch();
+          ks.slice(i, i + 100).forEach(k => b.update(wref(k), {'sig.ausbilder': {img: ausSig, date, name: sigName}}));
+          await b.commit();
+        }
+        toast(ks.length + (ks.length === 1 ? ' Woche' : ' Wochen') + ' bestätigt');
+      } catch (_) { toast('Bestätigen fehlgeschlagen'); }
+    }
+  };
+
+  const onPdf = async j => {
+    if (!j.deckblatt && !j.weeks.length) { toast('Keine Wochen für das PDF'); return; }
+    if (!window.jspdf) { toast('PDF-Modul nicht geladen. Internet prüfen.'); return; }
+    flushAll(); setBusy(true);
+    await new Promise(r => setTimeout(r, 30));
+    try {
+      const doc = buildPdf(heft, weeks, j);
+      const n = fileSafe(`${dbl.name || ''}_${dbl.vorname || ''}`);
+      const name = j.weeks.length === 1 && !j.deckblatt ? `Ausbildungsnachweis_Nr${weekNr(j.weeks[0], dbl.beginn)}_${n}.pdf`
+        : j.weeks.length ? `Berichtsheft_${n}.pdf` : `Deckblatt_${n}.pdf`;
+      await deliverPdf(doc, name);
+    } catch (e) { console.error(e); toast('PDF konnte nicht erstellt werden'); }
+    setBusy(false);
+  };
+
+  const name = `${dbl.vorname || heft?.azubiVorname || ''} ${dbl.name || heft?.azubiName || ''}`.trim();
+  const top = <Top left={role === 'ausbilder'
+      ? <button className="btn small ghost back" onClick={() => { flushAll(); onBack(); }}>‹ Alle Azubis</button>
+      : <b>Berichtsheft</b>}
+    right={<><span className="muted small hide-s">{name}</span>{role === 'azubi' && <Logout/>}</>}/>;
+
+  if (heft === null) return <div className="wrap"><p className="muted">Lädt …</p></div>;
+  if (heft === false) return <div className="wrap">{top}<div className="sheet"><h2>Berichtsheft nicht gefunden</h2><p className="muted">Kein Zugriff oder gelöscht.</p></div></div>;
+  if (!heft.setupDone || !minWk) return role === 'azubi'
+    ? <div className="wrap">{top}<DeckblattForm setup initial={dbl} onSave={f => ref.update({deckblatt: f, setupDone: true}).catch(() => toast('Speichern fehlgeschlagen'))}/></div>
+    : <div className="wrap">{top}<div className="sheet"><h2>Noch nicht gestartet</h2><p className="muted">{name || heft.azubiEmail} hat das Deckblatt noch nicht ausgefüllt.</p></div></div>;
+
+  const w = weeks[wk] || normWeek(null, dbl.abteilung);
+  return (
+    <>
+      <div className="wrap">
+        {top}
+        {tab === 'woche' && <WeekView role={role} heft={heft} wk={wk} setWk={k => { flushAll(); setWk(k); }} minWk={minWk} w={w} act={act} ausSig={ausSig} onPdf={onPdf}/>}
+        {tab === 'uebersicht' && <Overview role={role} heft={heft} weeks={weeks} minWk={minWk} act={act} ausSig={ausSig} onPdf={onPdf}
+                                   open={k => { setWk(k); setTab('woche'); window.scrollTo(0, 0); }}/>}
+        {tab === 'deckblatt' && <>
+          <DeckblattForm key={JSON.stringify(dbl)} initial={dbl} onSave={f => ref.update({deckblatt: f}).then(() => toast('Deckblatt gespeichert')).catch(() => toast('Speichern fehlgeschlagen'))}/>
+          <div className="row" style={{marginTop:12}}>
+            <button className="btn" onClick={() => onPdf({deckblatt: true, weeks: []})}>Deckblatt als PDF</button>
+            {role === 'azubi' && heft.azubiSig && <button className="btn ghost" onClick={() => ref.update({azubiSig: null}).then(() => toast('Gespeicherte Unterschrift gelöscht'))}>Gespeicherte Unterschrift löschen</button>}
+          </div>
+        </>}
+      </div>
+      <nav className="tabs">
+        {[['woche','Woche'],['uebersicht','Übersicht'],['deckblatt','Deckblatt']].map(([k, l]) =>
+          <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); window.scrollTo(0, 0); }}>{l}</button>)}
+      </nav>
+      {busy && <div className="modal"><div className="box center"><p>PDF wird erstellt …</p></div></div>}
+    </>
+  );
+}
+
+/* ================= Azubi-Start ================= */
+function AzubiHome({user}) {
+  const [state, setState] = useState('laden');
+  const email = (user.email || '').toLowerCase();
+  const check = useCallback(async () => {
+    setState('laden');
+    try {
+      const h = await db.collection('hefte').doc(user.uid).get();
+      if (h.exists) { setState('heft'); return; }
+      const inv = await db.collection('einladungen').doc(email).get();
+      if (!inv.exists) { setState('keine'); return; }
+      const i = inv.data();
+      await db.collection('hefte').doc(user.uid).set({
+        azubiUid: user.uid, azubiEmail: email, azubiVorname: i.vorname || '', azubiName: i.name || '',
+        ausbilderUid: i.ausbilderUid, ausbilderEmail: i.ausbilderEmail || '',
+        setupDone: false, azubiSig: null,
+        deckblatt: {vorname: i.vorname || '', name: i.name || '', betrieb: BETRIEB, ausbilder: i.ausbilderName || ''},
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      setState('heft');
+    } catch (e) { console.error(e); setState('fehler'); }
+  }, [user.uid, email]);
+  useEffect(() => { check(); }, [check]);
+
+  if (state === 'heft') return <Heft key={user.uid} heftId={user.uid} role="azubi" user={user}/>;
+  return (
+    <div className="wrap narrow">
+      <div className="sheet">
+        {state === 'laden' && <p className="muted" style={{margin:0}}>Lädt …</p>}
+        {state === 'keine' && <><h2>Noch keine Einladung</h2>
+          <p>Für <b>{user.email}</b> gibt es noch kein Berichtsheft. Bitte deinen Ausbilder, dich mit genau dieser E-Mail einzuladen.</p></>}
+        {state === 'fehler' && <><h2>Laden fehlgeschlagen</h2><p className="muted">Internetverbindung prüfen.</p></>}
+        {state !== 'laden' && <div className="row" style={{justifyContent:'space-between'}}>
+          <button className="btn primary" onClick={check}>Erneut prüfen</button><Logout/></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ================= Ausbilder ================= */
+function PendingCount({id}) {
+  const [n, setN] = useState(null);
+  useEffect(() => db.collection('hefte').doc(id).collection('wochen').onSnapshot(qs => {
+    let c = 0; qs.forEach(d => { const s = d.data().sig || {}; if (s.azubi && !s.ausbilder) c++; }); setN(c);
+  }, () => {}), [id]);
+  return n ? <span className="badge eingereicht">{n} offen</span> : n === 0 ? <span className="badge">Nichts offen</span> : null;
+}
+
+const inviteText = i => `Hallo ${i.vorname}, dein digitales Berichtsheft ist bereit. Öffne ${APP_URL}, tippe auf „Neu hier? Konto erstellen“ und registriere dich mit ${i.email}.`;
+async function shareInvite(i) {
+  const text = inviteText(i);
+  if (navigator.share) { try { await navigator.share({text}); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text); toast('Einladungstext kopiert'); } catch (_) { prompt('Einladungstext kopieren:', text); }
+}
+
+function InviteModal({user, ausName, onDone}) {
+  const [f, setF] = useState({vorname:'', name:'', email:''});
+  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false); const [done, setDone] = useState(null);
+  const set = (k, v) => setF(p => ({...p, [k]: v}));
+  const email = f.email.trim().toLowerCase();
+  const ok = f.vorname.trim() && f.name.trim() && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  const create = async () => {
+    if (isAusbilderEmail(email)) { setErr('Das ist eine Ausbilder-E-Mail.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const i = {email, vorname: f.vorname.trim(), name: f.name.trim(), ausbilderUid: user.uid, ausbilderEmail: user.email, ausbilderName: ausName || '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()};
+      await db.collection('einladungen').doc(email).set(i);
+      setDone(i);
+    } catch (_) { setErr('Einladung nicht möglich. Diese E-Mail ist evtl. schon bei einem anderen Ausbilder eingeladen.'); }
+    setBusy(false);
+  };
+  return (
+    <div className="modal" onClick={e => e.target === e.currentTarget && onDone()}>
+      <div className="box">
+        {done ? <>
+          <h3>Eingeladen</h3>
+          <p>{done.vorname} kann sich jetzt mit <b>{done.email}</b> registrieren. Schick ihr den Link:</p>
+          <p className="invite">{inviteText(done)}</p>
+          <div className="row" style={{justifyContent:'flex-end'}}>
+            <button className="btn" onClick={onDone}>Fertig</button>
+            <button className="btn primary" onClick={() => shareInvite(done)}>Teilen</button>
+          </div>
+        </> : <>
+          <h3>Azubi einladen</h3>
+          <div className="grid">
+            <label className="fld"><span>Vorname</span><input value={f.vorname} onChange={e => set('vorname', e.target.value)}/></label>
+            <label className="fld"><span>Name</span><input value={f.name} onChange={e => set('name', e.target.value)}/></label>
+            <label className="fld wide"><span>E-Mail der Azubine (damit meldet sie sich an)</span><input type="email" value={f.email} onChange={e => set('email', e.target.value)}/></label>
+          </div>
+          {err && <p className="err">{err}</p>}
+          <div className="row" style={{justifyContent:'flex-end'}}>
+            <button className="btn" onClick={onDone}>Abbrechen</button>
+            <button className="btn primary" disabled={!ok || busy} onClick={create}>Einladen</button>
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function AusbilderHome({user}) {
+  const [sel, setSel] = useState(null);
+  const [hefte, setHefte] = useState(null);
+  const [invites, setInvites] = useState([]);
+  const [prof, setProf] = useState({});
+  const [nameDraft, setNameDraft] = useState(null);
+  const [pad, setPad] = useState(false);
+  const [neu, setNeu] = useState(false);
+  const meRef = db.collection('ausbilder').doc(user.uid);
+  useEffect(() => db.collection('hefte').where('ausbilderUid', '==', user.uid).onSnapshot(
+    qs => setHefte(qs.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => (a.azubiVorname || '').localeCompare(b.azubiVorname || ''))),
+    () => setHefte([])), [user.uid]);
+  useEffect(() => db.collection('einladungen').where('ausbilderUid', '==', user.uid).onSnapshot(
+    qs => setInvites(qs.docs.map(d => ({id: d.id, ...d.data()}))), () => {}), [user.uid]);
+  useEffect(() => meRef.onSnapshot(s => setProf(s.exists ? s.data() : {}), () => {}), [user.uid]);
+
+  const ausSig = prof.sig || null, ausName = prof.name || '';
+  if (sel) return <Heft heftId={sel} role="ausbilder" user={user} ausSig={ausSig} ausName={ausName} onBack={() => setSel(null)}/>;
+  const registered = new Set((hefte || []).map(h => (h.azubiEmail || '').toLowerCase()));
+  const openInv = invites.filter(i => !registered.has(i.id));
+  const saveName = () => { meRef.set({name: nameDraft.trim()}, {merge: true}).then(() => toast('Name gespeichert')); setNameDraft(null); };
+
+  return (
+    <div className="wrap">
+      <Top left={<b>Berichtshefte</b>} right={<><span className="muted small hide-s">{user.email}</span><Logout/></>}/>
+      {!ausName && nameDraft === null && <div className="lockbar"><span>Trag deinen Namen ein. Er erscheint bei deiner Unterschrift.</span>
+        <button className="btn small primary" onClick={() => setNameDraft('')}>Eintragen</button></div>}
+      <div className="row" style={{justifyContent:'space-between',marginBottom:10}}>
+        <h2 style={{margin:0}}>Meine Azubis</h2>
+        <button className="btn primary small" onClick={() => setNeu(true)}>+ Azubi einladen</button>
+      </div>
+      {hefte === null ? <p className="muted">Lädt …</p>
+        : hefte.length === 0 && openInv.length === 0 ? <div className="sheet"><p className="muted" style={{margin:0}}>Noch keine Azubis. Lade die erste ein.</p></div>
+        : <div className="wlist" style={{marginTop:0}}>
+            {hefte.map(h => (
+              <button key={h.id} className="aitem" onClick={() => { setSel(h.id); window.scrollTo(0, 0); }}>
+                <span><b>{h.deckblatt?.vorname || h.azubiVorname} {h.deckblatt?.name || h.azubiName}</b><br/>
+                  <span className="muted small">{h.setupDone ? (h.deckblatt?.beruf || '') : 'Deckblatt noch offen'}</span></span>
+                <PendingCount id={h.id}/>
+              </button>
+            ))}
+            {openInv.map(i => (
+              <div key={i.id} className="aitem inv">
+                <span><b>{i.vorname} {i.name}</b><br/><span className="muted small">Eingeladen, noch nicht registriert ({i.id})</span></span>
+                <span className="row">
+                  <button className="btn small" onClick={() => shareInvite({...i, email: i.id})}>Link teilen</button>
+                  <button className="btn small ghost" onClick={() => { if (confirm('Einladung löschen?')) db.collection('einladungen').doc(i.id).delete(); }}>Löschen</button>
+                </span>
+              </div>
+            ))}
+          </div>}
+      <div className="section sheet">
+        <h3>Mein Profil</h3>
+        {nameDraft !== null
+          ? <div className="row" style={{marginTop:8}}>
+              <input className="inp" placeholder="Vor- und Nachname" value={nameDraft} onChange={e => setNameDraft(e.target.value)}/>
+              <button className="btn small primary" disabled={!nameDraft.trim()} onClick={saveName}>Speichern</button>
+            </div>
+          : <p className="row" style={{justifyContent:'space-between'}}><span>{ausName || <span className="muted">Kein Name</span>}</span>
+              <button className="btn small ghost" onClick={() => setNameDraft(ausName)}>Ändern</button></p>}
+        <p className="muted small">Unterschrift zum Bestätigen der Wochen. Nur du kannst sie nutzen.</p>
+        {ausSig && <img className="mysig" src={ausSig} alt="Gespeicherte Unterschrift"/>}
+        <div className="row" style={{marginTop:10}}>
+          <button className={'btn small' + (ausSig ? '' : ' primary')} onClick={() => setPad(true)}>{ausSig ? 'Neu zeichnen' : 'Unterschrift hinterlegen'}</button>
+          {ausSig && <button className="btn small ghost" onClick={() => meRef.set({sig: null}, {merge: true})}>Löschen</button>}
+        </div>
+      </div>
+      {pad && <SigPad title="Meine Unterschrift" onClose={() => setPad(false)}
+        onSave={img => { meRef.set({sig: img}, {merge: true}).then(() => toast('Unterschrift gespeichert')); setPad(false); }}/>}
+      {neu && <InviteModal user={user} ausName={ausName} onDone={() => setNeu(false)}/>}
+    </div>
+  );
+}
+
+/* ================= Start ================= */
+function App() {
+  const [user, setUser] = useState(undefined);
+  const [verified, setVerified] = useState(false);
+  useEffect(() => CONFIG_OK ? auth.onAuthStateChanged(u => { setUser(u || null); setVerified(!!u?.emailVerified); }) : undefined, []);
+  let body;
+  if (!CONFIG_OK) body = <div className="wrap narrow"><div className="sheet"><h2>Einrichtung fehlt</h2><p className="muted">FIREBASE_CONFIG und AUSBILDER_EMAILS oben in index.html eintragen.</p></div></div>;
+  else if (user === undefined) body = <div className="wrap"><p className="muted">Lädt …</p></div>;
+  else if (!user) body = <Login/>;
+  else if (!verified) body = <VerifyEmail user={user} onVerified={() => setVerified(true)}/>;
+  else body = isAusbilderEmail(user.email) ? <AusbilderHome key={user.uid} user={user}/> : <AzubiHome key={user.uid} user={user}/>;
+  return <>{body}<Toast/></>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
