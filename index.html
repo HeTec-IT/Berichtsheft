@@ -965,7 +965,7 @@ function AusbilderHome({user}) {
       b.delete(db.collection('anfragen').doc(a.uid));
       await b.commit();
       toast(`${a.vorname} freigegeben`);
-    } catch (_) { toast('Freigabe fehlgeschlagen'); }
+    } catch (e) { console.error(e); toast('Freigabe fehlgeschlagen' + (e.code ? ': ' + e.code : '')); }
   };
   const ablehnen = a => {
     if (!confirm(`Anfrage von ${a.vorname} ${a.name} ablehnen?`)) return;
