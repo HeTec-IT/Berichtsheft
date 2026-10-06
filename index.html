@@ -8,6 +8,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Berichtsheft">
 <link rel="manifest" href="manifest.json">
+<script>
+window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; window.dispatchEvent(new Event('bh-install')); });
+window.addEventListener('appinstalled', function () { window.__bip = null; window.dispatchEvent(new Event('bh-install')); });
+</script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <title>Berichtsheft</title>
@@ -122,6 +126,9 @@ h3{font-size:1.05rem;margin:0}
 .invite{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.92rem}
 .modal .grid{margin:12px 0}
 .box.center{text-align:center}
+.installwrap{max-width:760px;margin:0 auto;padding:12px 16px 0}
+.installbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border:1px solid var(--accent);border-radius:12px;padding:10px 14px;font-size:.92rem}
+.inst-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:210px}
 .auto{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px}
 .spday{border-top:1px solid var(--rule);padding:12px 0 6px}
 .sphead{display:flex;justify-content:space-between;margin-bottom:6px}
@@ -1360,6 +1367,44 @@ function RoleGate({user}) {
   return <AzubiHome user={user}/>;
 }
 
+/* ================= App installieren (Android: Button, iPhone/iPad: Anleitung) ================= */
+const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+const UA = navigator.userAgent;
+const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/.test(UA);
+const ShareIcon = () => <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'-3px'}} aria-label="Teilen"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>;
+
+function InstallBanner() {
+  const [, tick] = useState(0);
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('bh-install-hint') === '1'; } catch (_) { return false; } });
+  const [howto, setHowto] = useState(false);
+  useEffect(() => { const f = () => tick(n => n + 1); window.addEventListener('bh-install', f); return () => window.removeEventListener('bh-install', f); }, []);
+  const bip = window.__bip;
+  if (hidden || isStandalone() || (!bip && !IS_IOS && !IS_ANDROID)) return null;
+  const close = () => { try { localStorage.setItem('bh-install-hint', '1'); } catch (_) {} setHidden(true); };
+  const install = async () => {
+    if (!bip) { setHowto(true); return; }
+    try { bip.prompt(); const r = await bip.userChoice; window.__bip = null; if (r.outcome === 'accepted') close(); else tick(n => n + 1); }
+    catch (_) { setHowto(true); }
+  };
+  return (
+    <div className="installwrap"><div className="installbar" role="region" aria-label="App installieren">
+      <div className="inst-text">
+        <b>Als App installieren</b>
+        {IS_IOS
+          ? <span>Tippe unten oder oben im Browser auf <ShareIcon/> und dann auf „Zum Home-Bildschirm“.</span>
+          : howto && !bip
+            ? <span>Browser-Menü (⋮) öffnen und „App installieren“ bzw. „Zum Startbildschirm hinzufügen“ wählen.</span>
+            : <span>Ein Tipp, dann liegt das Berichtsheft wie eine App auf deinem Gerät.</span>}
+      </div>
+      <div className="row">
+        {!IS_IOS && <button className="btn primary small" onClick={install}>Installieren</button>}
+        <button className="btn small ghost" onClick={close}>{IS_IOS ? 'Verstanden' : 'Später'}</button>
+      </div>
+    </div></div>
+  );
+}
+
 /* ================= Start ================= */
 function App() {
   const [user, setUser] = useState(undefined);
@@ -1369,7 +1414,7 @@ function App() {
   else if (user === undefined) body = <div className="wrap"><p className="muted">Lädt …</p></div>;
   else if (!user) body = <Login/>;
   else body = <RoleGate key={user.uid} user={user}/>;
-  return <>{body}<Toast/></>;
+  return <><InstallBanner/>{body}<Toast/></>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
