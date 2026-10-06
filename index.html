@@ -122,6 +122,17 @@ h3{font-size:1.05rem;margin:0}
 .invite{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.92rem}
 .modal .grid{margin:12px 0}
 .box.center{text-align:center}
+.auto{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:-4px 0 14px}
+.spday{border-top:1px solid var(--rule);padding:12px 0 6px}
+.sphead{display:flex;justify-content:space-between;margin-bottom:6px}
+.spgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+.spgrid .fld,.listrow .fld{min-width:0}
+.spgrid input,.listrow input{min-width:0;padding:9px 6px}
+.spgrid input[type=time],.listrow input[type=date]{font-size:.92rem}
+.listrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 0;border-top:1px solid var(--rule)}
+.listrow .wide{grid-column:1/-1}
+.auto .soll{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.9rem}
+.auto .soll input{width:58px;background:var(--paper);border:1px solid var(--rule);border-radius:7px;padding:8px;text-align:right;color:var(--ink)}
 .anfragen{background:var(--sheet);border:2px solid var(--accent);border-radius:12px;padding:14px 16px;margin-bottom:18px}
 .anfragen h3{margin:0 0 8px;color:var(--accent)}
 .anfrage{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--rule)}
@@ -389,7 +400,8 @@ function buildPdf(heft, weeks, job) {
     const dateFs = Math.max(6, fs - 1.5);
     DAYS.forEach(([dk, label], di) => {
       const d = w.days[dk];
-      const rows = d.entries.map(e => ({lines: wrap(e.text, dw[1] - 2*P, fs, false), h: e.h}));
+      const used = d.entries.filter(e => e.text.trim() || num(e.h));
+      const rows = (used.length ? used : [d.entries[0]]).map(e => ({lines: wrap(e.text, dw[1] - 2*P, fs, false), h: e.h}));
       const hs = rows.map(r => Math.max(rowH, r.lines.length*L + 2*P));
       const need = L + lh(dateFs) + 2*P;
       const sum = hs.reduce((a, b) => a + b, 0);
@@ -577,6 +589,219 @@ function DayCard({label, date, day, locked, onChange}) {
   );
 }
 
+/* ================= Stunden automatisch verteilen ================= */
+const STEP = 0.5;
+const fmtIn = n => String(n).replace('.', ',');
+function splitUnits(units, n, capUnits) {
+  const base = Math.floor(units / n), rem = units - base * n;
+  const a = Array.from({length: n}, (_, i) => base + (i < rem ? 1 : 0));
+  if (capUnits) {
+    let left = 0;
+    a.forEach((v, i) => { if (v > capUnits) { left += v - capUnits; a[i] = capUnits; } });
+    while (left > 0) {
+      let moved = false;
+      for (let i = 0; i < n && left > 0; i++) if (a[i] < capUnits) { a[i]++; left--; moved = true; }
+      if (!moved) break;
+    }
+  }
+  return a;
+}
+/* ================= Stundenplan Berufsschule ================= */
+const r05 = h => Math.round(h / STEP) * STEP;
+const clockH = (von, bis) => {
+  const m = s => { const r = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return r ? +r[1] * 60 + +r[2] : null; };
+  const a = m(von), b = m(bis);
+  return a !== null && b !== null && b > a ? (b - a) / 60 : 0;
+};
+const emptyPlan = () => ({wechsel: false, refA: '', a: {}, b: {}, bloecke: [], ferien: []});
+
+// § 15 BBiG: Schultag mit >5 UStd. (1x/Woche) = durchschnittliche Tageszeit (Soll/5),
+// Blockwoche (>=25 UStd. an 5 Tagen) = Wochen-Soll, sonst Unterrichtszeit
+function calcSchool(items, soll) {
+  const out = {};
+  const n = items.length;
+  if (!n) return {out, block: false};
+  const sum = items.reduce((a, i) => a + i.ust, 0);
+  if (n >= 5 && sum >= 25) {
+    const u = splitUnits(Math.round(soll / STEP), n);
+    items.forEach((i, j) => { out[i.k] = {h: u[j] * STEP, text: i.text}; });
+    return {out, block: true};
+  }
+  let q = -1;
+  items.forEach((i, j) => { if (i.ust > 5 && (q < 0 || i.ust > items[q].ust)) q = j; });
+  items.forEach((i, j) => { out[i.k] = {h: j === q ? r05(soll / 5) : r05(i.clock || i.ust * 0.75), text: i.text}; });
+  return {out, block: false};
+}
+function schoolForWeek(plan, wk, soll) {
+  if (!plan) return {out: {}, block: false};
+  const mon = parse(wk), dateOf = i => iso(addDays(mon, i));
+  const free = d => (plan.ferien || []).some(r => r.von && r.bis && d >= r.von && d <= r.bis);
+  const blk = (plan.bloecke || []).find(b => b.von && b.bis && b.von <= dateOf(4) && b.bis >= dateOf(0));
+  const items = [];
+  if (blk) {
+    DAYS.slice(0, 5).forEach(([k], i) => {
+      const d = dateOf(i);
+      if (d >= blk.von && d <= blk.bis && !free(d)) items.push({k, ust: num(blk.ust) || 8, clock: 0, text: (blk.text || '').trim() || 'Berufsschule (Blockunterricht)'});
+    });
+  } else {
+    let ab = 'a';
+    const r = plan.wechsel && parse(plan.refA);
+    if (r) { const diff = Math.round((mon - monday(r)) / (7 * 864e5)); ab = ((diff % 2) + 2) % 2 === 0 ? 'a' : 'b'; }
+    const pl = plan[ab] || {};
+    DAYS.slice(0, 5).forEach(([k], i) => {
+      const p = pl[k] || {}, ust = num(p.ust), c = clockH(p.von, p.bis);
+      if ((ust > 0 || c > 0) && !free(dateOf(i))) items.push({k, ust, clock: c, text: (p.text || '').trim() || 'Berufsschule'});
+    });
+  }
+  return calcSchool(items, soll);
+}
+
+function AutoHours({heft, w, wk, minor, act}) {
+  const [soll, setSoll] = useState(String(heft.wochenSoll || 40));
+  const sollNum = Math.min(60, Math.max(1, num(soll) || 40));
+  const plan = heft.stundenplan;
+  const hasPlan = !!plan && (['a', 'b'].some(t => Object.values(plan[t] || {}).some(d => num(d.ust) > 0 || clockH(d.von, d.bis) > 0)) || (plan.bloecke || []).length > 0);
+  const lbl = k => DAYS.find(d => d[0] === k)[1].slice(0, 2);
+
+  const schuleEintragen = () => {
+    const res = schoolForWeek(plan, wk, sollNum);
+    const ks = Object.keys(res.out);
+    if (!ks.length) { toast('Laut Stundenplan keine Schule in dieser Woche'); return; }
+    const skipped = [];
+    act.edit(x => {
+      ks.forEach(k => {
+        const d = x.days[k];
+        const used = d.entries.some(e => e.text.trim() || num(e.h));
+        if (['urlaub', 'krank', 'feiertag'].includes(d.typ) || (used && d.typ !== 'schule')) { skipped.push(k); return; }
+        d.typ = 'schule'; d.entries = [{text: res.out[k].text, h: fmtIn(res.out[k].h)}];
+      });
+      return x;
+    });
+    const done = ks.filter(k => !skipped.includes(k));
+    toast((done.length ? 'Schule: ' + done.map(k => `${lbl(k)} ${fmtIn(res.out[k].h)}`).join(', ') : 'Nichts eingetragen') + (skipped.length ? ` (${skipped.map(lbl).join(', ')} belegt)` : ''));
+  };
+
+  const verteilen = () => {
+    const keys = DAYS.map(([k]) => k);
+    const hoursOf = k => dayTotal(w.days[k]);
+    const hasText = k => w.days[k].entries.some(e => e.text.trim());
+    const fixed = keys.filter(k => w.days[k].typ === 'schule' && hoursOf(k) > 0 && hasText(k));
+    const active = keys.filter(k => !fixed.includes(k) && w.days[k].typ !== 'frei' && hasText(k));
+    if (!active.length && !fixed.length) { toast('Erst Tätigkeiten eintragen'); return; }
+    if (active.some(k => hoursOf(k) > 0) && !confirm('Vorhandene Stunden werden neu berechnet. Weiter?')) return;
+    const fixedSum = fixed.reduce((a, k) => a + hoursOf(k), 0);
+    const rest = Math.max(0, sollNum - fixedSum);
+    const cap = minor ? 8 : 10;
+    const dayUnits = active.length ? splitUnits(Math.round(rest / STEP), active.length, Math.floor(cap / STEP)) : [];
+    const got = fixedSum + dayUnits.reduce((a, b) => a + b, 0) * STEP;
+    act.edit(x => {
+      keys.forEach(k => { if (!fixed.includes(k)) x.days[k].entries.forEach(e => { e.h = ''; }); });
+      active.forEach((k, di) => {
+        const idx = x.days[k].entries.map((e, i) => e.text.trim() ? i : -1).filter(i => i >= 0);
+        splitUnits(dayUnits[di], idx.length).forEach((u, j) => { x.days[k].entries[idx[j]].h = u ? fmtIn(u * STEP) : ''; });
+      });
+      return x;
+    });
+    toast(got < sollNum - 0.01 && rest > 0
+      ? `Nur ${fmtIn(got)} Std. möglich (max. ${cap} Std. pro Tag, ${active.length} ${active.length === 1 ? 'Tag' : 'Tage'} mit Einträgen)`
+      : `${fmtIn(got)} Std. verteilt` + (fixed.length ? ` (Schule ${fmtIn(fixedSum)} fest)` : ''));
+  };
+
+  return (
+    <div className="auto">
+      {hasPlan && <button className="btn" onClick={schuleEintragen}>Schule aus Stundenplan eintragen</button>}
+      <button className="btn" onClick={verteilen}>Stunden automatisch verteilen</button>
+      <label className="soll">Soll
+        <input inputMode="decimal" value={soll} aria-label="Wochenstunden Soll"
+          onChange={e => setSoll(cleanHours(e.target.value))}
+          onBlur={() => { setSoll(String(sollNum)); if (sollNum !== (heft.wochenSoll || 40)) act.setSoll(sollNum); }}/>
+        Std./Woche</label>
+      {!hasPlan && <span className="muted small" style={{flexBasis:'100%'}}>Berufsschule? Unter „Schule“ den Stundenplan hinterlegen.</span>}
+    </div>
+  );
+}
+
+function StundenplanView({heft, onSave}) {
+  const soll = Math.min(60, Math.max(1, num(heft.wochenSoll) || 40));
+  const base = () => ({...emptyPlan(), ...(heft.stundenplan || {})});
+  const [p, setP] = useState(base);
+  const [ab, setAb] = useState('a');
+  const upd = fn => setP(prev => fn(clone(prev)));
+  const t = p.wechsel ? ab : 'a';
+  const cur = p[t] || {};
+  const setDay = (k, f, v) => upd(x => { x[t] = x[t] || {}; x[t][k] = {...(x[t][k] || {}), [f]: v}; return x; });
+  const items = DAYS.slice(0, 5).map(([k]) => { const d = cur[k] || {}; return {k, ust: num(d.ust), clock: clockH(d.von, d.bis), text: ''}; }).filter(i => i.ust > 0 || i.clock > 0);
+  const calc = calcSchool(items, soll);
+  const setRow = (name, i, f, v) => upd(x => { x[name][i][f] = v; return x; });
+  const dirty = JSON.stringify(p) !== JSON.stringify(base());
+  const save = () => { const x = clone(p); x.bloecke = x.bloecke.filter(b => b.von && b.bis); x.ferien = x.ferien.filter(r => r.von && r.bis); onSave(x); };
+  return (
+    <>
+      <div className="sheet">
+        <h2>Stundenplan Berufsschule</h2>
+        <p className="muted small">Unterrichtsstunden pro Tag eintragen. Die App rechnet daraus die Schulstunden der Woche (§ 15 BBiG): Ein Schultag mit mehr als 5 Unterrichtsstunden zählt einmal pro Woche als normaler Arbeitstag ({fmtIn(soll / 5)} Std.), eine Blockwoche mit mindestens 25 Unterrichtsstunden an 5 Tagen als volle Woche ({fmtIn(soll)} Std.), sonst zählt die Unterrichtszeit.</p>
+        <label className="row small" style={{margin:'10px 0'}}>
+          <input type="checkbox" checked={p.wechsel} onChange={e => upd(x => { x.wechsel = e.target.checked; return x; })}/> Wechselwochen (Woche A / Woche B)
+        </label>
+        {p.wechsel && <>
+          <div className="chips" style={{padding:'0 0 8px'}}>
+            {[['a','Woche A'],['b','Woche B']].map(([k, l]) => <button key={k} className={'chip' + (ab === k ? ' on' : '')} onClick={() => setAb(k)}>{l}</button>)}
+          </div>
+          <label className="fld" style={{marginBottom:6}}><span>Ein Datum aus einer A-Woche (damit die App A/B unterscheidet)</span>
+            <input type="date" value={p.refA || ''} onChange={e => upd(x => { x.refA = e.target.value; return x; })}/></label>
+        </>}
+        {DAYS.slice(0, 5).map(([k, l]) => {
+          const d = cur[k] || {};
+          return (
+            <div className="spday" key={k}>
+              <div className="sphead"><b>{l}</b><span className="muted small">{calc.out[k] ? '= ' + fmtIn(calc.out[k].h) + ' Std.' : ''}</span></div>
+              <div className="spgrid">
+                <label className="fld"><span>Unterrichtsstd.</span><input inputMode="decimal" value={d.ust || ''} onChange={e => setDay(k, 'ust', cleanHours(e.target.value))}/></label>
+                <label className="fld"><span>von</span><input type="time" value={d.von || ''} onChange={e => setDay(k, 'von', e.target.value)}/></label>
+                <label className="fld"><span>bis</span><input type="time" value={d.bis || ''} onChange={e => setDay(k, 'bis', e.target.value)}/></label>
+              </div>
+              <label className="fld"><span>Fächer (optional, kommt ins Berichtsheft)</span><input value={d.text || ''} onChange={e => setDay(k, 'text', e.target.value)}/></label>
+            </div>
+          );
+        })}
+        <p className="muted small" style={{marginBottom:0}}>„von/bis“ ist optional: Unterrichtszeit mit Pausen, wird für Schultage mit höchstens 5 Unterrichtsstunden genutzt.</p>
+      </div>
+
+      <div className="sheet" style={{marginTop:12}}>
+        <h3>Blockwochen</h3>
+        <p className="muted small" style={{marginTop:4}}>Wochen mit Blockunterricht (Mo–Fr). Dort gilt der Block statt des Wochenplans.</p>
+        {p.bloecke.map((b, i) => (
+          <div className="listrow" key={i}>
+            <label className="fld"><span>von</span><input type="date" value={b.von || ''} onChange={e => setRow('bloecke', i, 'von', e.target.value)}/></label>
+            <label className="fld"><span>bis</span><input type="date" value={b.bis || ''} onChange={e => setRow('bloecke', i, 'bis', e.target.value)}/></label>
+            <label className="fld"><span>Unterrichtsstd. pro Tag</span><input inputMode="decimal" value={b.ust || ''} placeholder="8" onChange={e => setRow('bloecke', i, 'ust', cleanHours(e.target.value))}/></label>
+            <label className="fld"><span>Fächer (optional)</span><input value={b.text || ''} onChange={e => setRow('bloecke', i, 'text', e.target.value)}/></label>
+            <button className="btn small ghost wide" onClick={() => upd(x => { x.bloecke.splice(i, 1); return x; })}>Entfernen</button>
+          </div>
+        ))}
+        <button className="btn small" onClick={() => upd(x => { x.bloecke.push({von: '', bis: '', ust: '8', text: ''}); return x; })}>+ Blockwoche</button>
+      </div>
+
+      <div className="sheet" style={{marginTop:12}}>
+        <h3>Schulfrei (Ferien)</h3>
+        <p className="muted small" style={{marginTop:4}}>In diesen Zeiträumen trägt die App keine Schule ein.</p>
+        {p.ferien.map((r, i) => (
+          <div className="listrow" key={i}>
+            <label className="fld"><span>von</span><input type="date" value={r.von || ''} onChange={e => setRow('ferien', i, 'von', e.target.value)}/></label>
+            <label className="fld"><span>bis</span><input type="date" value={r.bis || ''} onChange={e => setRow('ferien', i, 'bis', e.target.value)}/></label>
+            <button className="btn small ghost wide" onClick={() => upd(x => { x.ferien.splice(i, 1); return x; })}>Entfernen</button>
+          </div>
+        ))}
+        <button className="btn small" onClick={() => upd(x => { x.ferien.push({von: '', bis: ''}); return x; })}>+ Schulfrei</button>
+      </div>
+
+      <div className="row" style={{marginTop:14}}>
+        <button className="btn primary" disabled={!dirty} onClick={save}>Stundenplan speichern</button>
+      </div>
+    </>
+  );
+}
+
 /* ================= Woche ================= */
 function WeekView({role, heft, wk, setWk, minWk, w, act, ausSig, onPdf}) {
   const dbl = heft.deckblatt;
@@ -658,6 +883,7 @@ function WeekView({role, heft, wk, setWk, minWk, w, act, ausSig, onPdf}) {
       ))}
 
       <div className="total"><span>Wochenstunden</span><b>{fmtH(weekTotal(w)) || '0'}</b></div>
+      {!locked && <AutoHours key={wk} heft={heft} w={w} wk={wk} minor={minor} act={act}/>}
 
       <div className="sigs">
         {SIGS.filter(([s]) => s !== 'vertreter' || minor || sig.vertreter).map(([s, l]) => (
@@ -807,6 +1033,7 @@ function Heft({heftId, role, user, ausSig, ausName, onBack}) {
       }
       toast('Unterschrieben');
     },
+    setSoll: v => ref.update({wochenSoll: v}).catch(() => {}),
     unsign: who => wref(wk).update({['sig.' + who]: firebase.firestore.FieldValue.delete()}).catch(() => toast('Nicht erlaubt')),
     reopen: () => {
       if (confirm('Woche zur Korrektur zurückgeben? Alle Unterschriften dieser Woche werden entfernt.'))
@@ -860,6 +1087,8 @@ function Heft({heftId, role, user, ausSig, ausName, onBack}) {
         {tab === 'woche' && <WeekView role={role} heft={heft} wk={wk} setWk={k => { flushAll(); setWk(k); }} minWk={minWk} w={w} act={act} ausSig={ausSig} onPdf={onPdf}/>}
         {tab === 'uebersicht' && <Overview role={role} heft={heft} weeks={weeks} minWk={minWk} act={act} ausSig={ausSig} onPdf={onPdf}
                                    open={k => { setWk(k); setTab('woche'); window.scrollTo(0, 0); }}/>}
+        {tab === 'schule' && role === 'azubi' && <StundenplanView key={JSON.stringify(heft.stundenplan || {})} heft={heft}
+          onSave={pl => ref.update({stundenplan: JSON.parse(JSON.stringify(pl))}).then(() => toast('Stundenplan gespeichert')).catch(() => toast('Speichern fehlgeschlagen'))}/>}
         {tab === 'deckblatt' && <>
           <DeckblattForm key={JSON.stringify(dbl)} initial={dbl} onSave={f => ref.update({deckblatt: f}).then(() => toast('Deckblatt gespeichert')).catch(() => toast('Speichern fehlgeschlagen'))}/>
           <div className="row" style={{marginTop:12}}>
@@ -869,7 +1098,7 @@ function Heft({heftId, role, user, ausSig, ausName, onBack}) {
         </>}
       </div>
       <nav className="tabs">
-        {[['woche','Woche'],['uebersicht','Übersicht'],['deckblatt','Deckblatt']].map(([k, l]) =>
+        {[['woche','Woche'],['uebersicht','Übersicht'],...(role === 'azubi' ? [['schule','Schule']] : []),['deckblatt','Deckblatt']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'on' : ''} onClick={() => { setTab(k); window.scrollTo(0, 0); }}>{l}</button>)}
       </nav>
       {busy && <div className="modal"><div className="box center"><p>PDF wird erstellt …</p></div></div>}
