@@ -566,15 +566,29 @@ function DeckblattForm({initial, onSave, setup}) {
 }
 
 /* ================= Tag ================= */
-function DayCard({label, date, day, locked, onChange}) {
+function DayCard({label, date, day, locked, onChange, school, noPlan}) {
   const tot = dayTotal(day);
-  const setTyp = t => onChange(d => {
-    d.typ = t;
+  const setTyp = t => {
     const auto = Object.values(AUTO);
-    if (AUTO[t]) { if (d.entries.every(e => !e.text.trim() || auto.includes(e.text))) d.entries = [{text: AUTO[t], h: d.entries[0]?.h || ''}]; }
-    else d.entries.forEach(e => { if (auto.includes(e.text)) e.text = ''; });
-    return d;
-  });
+    // Berufsschule antippen: Fächer + Stunden kommen aus dem Stundenplan
+    let fill = false;
+    if (t === 'schule' && day.typ !== 'schule') {
+      if (!school) toast(noPlan ? 'Noch kein Stundenplan: im Reiter „Schule“ eintragen' : 'Laut Stundenplan keine Schule an diesem Tag');
+      else {
+        const used = day.entries.some(e => (e.text.trim() && !auto.includes(e.text)) || num(e.h));
+        fill = !used || confirm(`${label} hat schon Einträge. Mit dem Stundenplan überschreiben?`);
+      }
+    }
+    onChange(d => {
+      // zuvor automatisch eingetragene Schule wieder entfernen, wenn der Tag-Typ gewechselt wird
+      if (d.typ === 'schule' && school && d.entries.length === 1 && d.entries[0].text === school.text && d.entries[0].h === fmtIn(school.h) && t !== 'schule') d.entries = [{text: '', h: ''}];
+      d.typ = t;
+      if (AUTO[t]) { if (d.entries.every(e => !e.text.trim() || auto.includes(e.text))) d.entries = [{text: AUTO[t], h: d.entries[0]?.h || ''}]; }
+      else d.entries.forEach(e => { if (auto.includes(e.text)) e.text = ''; });
+      if (fill) d.entries = [{text: school.text, h: fmtIn(school.h)}];
+      return d;
+    });
+  };
   return (
     <section className={'day t-' + day.typ}>
       <header><div><h3>{label}</h3><span className="date">{de(date)}</span></div><span className="dtot">{tot ? fmtH(tot) + ' Std.' : ''}</span></header>
@@ -643,6 +657,8 @@ const cleanPlan = p => {
   x.ferien = (x.ferien || []).filter(r => r.von && r.bis);
   return x;
 };
+
+const hasPlanData = plan => !!plan && (['a', 'b'].some(t => Object.values(plan[t] || {}).some(d => { const q = planDay(d); return num(q.ust) > 0 || clockH(q.von, q.bis) > 0; })) || (plan.bloecke || []).length > 0);
 
 // § 15 BBiG: Schultag mit >5 UStd. (1x/Woche) = durchschnittliche Tageszeit (Soll/5),
 // Blockwoche (>=25 UStd. an 5 Tagen) = Wochen-Soll, sonst Unterrichtszeit
@@ -713,28 +729,38 @@ function AutoHours({heft, w, wk, minor, act}) {
 
   const verteilen = () => {
     const keys = DAYS.map(([k]) => k);
-    const hoursOf = k => dayTotal(w.days[k]);
-    const hasText = k => w.days[k].entries.some(e => e.text.trim());
-    const fixed = keys.filter(k => w.days[k].typ === 'schule' && hoursOf(k) > 0 && hasText(k));
-    const active = keys.filter(k => !fixed.includes(k) && w.days[k].typ !== 'frei' && hasText(k));
-    if (!active.length && !fixed.length) { toast('Erst Tätigkeiten eintragen'); return; }
-    if (active.some(k => hoursOf(k) > 0) && !confirm('Vorhandene Stunden werden neu berechnet. Weiter?')) return;
-    const fixedSum = fixed.reduce((a, k) => a + hoursOf(k), 0);
+    // Schule-Zeilen mit Stunden bleiben fest, alle anderen Zeilen mit Text bekommen den Rest
+    const fixedE = (d, e) => d.typ === 'schule' && num(e.h) > 0;
+    const info = keys.map(k => {
+      const d = w.days[k];
+      return {k, fixedH: d.entries.reduce((a, e) => a + (fixedE(d, e) ? num(e.h) : 0), 0),
+        open: d.typ === 'frei' ? [] : d.entries.map((e, i) => !fixedE(d, e) && e.text.trim() ? i : -1).filter(i => i >= 0)};
+    });
+    const fixedSum = info.reduce((a, x) => a + x.fixedH, 0);
+    const act_ = info.filter(x => x.open.length);
+    if (!act_.length && !fixedSum) { toast('Erst Tätigkeiten eintragen'); return; }
+    if (act_.some(x => x.open.some(i => num(w.days[x.k].entries[i].h) > 0)) && !confirm('Vorhandene Stunden werden neu berechnet. Weiter?')) return;
     const rest = Math.max(0, sollNum - fixedSum);
-    const cap = minor ? 8 : 10;
-    const dayUnits = active.length ? splitUnits(Math.round(rest / STEP), active.length, Math.floor(cap / STEP)) : [];
-    const got = fixedSum + dayUnits.reduce((a, b) => a + b, 0) * STEP;
+    const cap = minor ? 8 : 10, capU = Math.floor(cap / STEP);
+    // Rest so verteilen, dass die Tagessummen möglichst gleich werden
+    const tot = act_.map(x => Math.round(x.fixedH / STEP)), alloc = act_.map(() => 0);
+    for (let u = 0, n = Math.round(rest / STEP); u < n; u++) {
+      let best = -1;
+      act_.forEach((x, i) => { if (tot[i] < capU && (best < 0 || tot[i] < tot[best])) best = i; });
+      if (best < 0) break;
+      tot[best]++; alloc[best]++;
+    }
+    const got = fixedSum + alloc.reduce((a, b) => a + b, 0) * STEP;
     act.edit(x => {
-      keys.forEach(k => { if (!fixed.includes(k)) x.days[k].entries.forEach(e => { e.h = ''; }); });
-      active.forEach((k, di) => {
-        const idx = x.days[k].entries.map((e, i) => e.text.trim() ? i : -1).filter(i => i >= 0);
-        splitUnits(dayUnits[di], idx.length).forEach((u, j) => { x.days[k].entries[idx[j]].h = u ? fmtIn(u * STEP) : ''; });
+      keys.forEach(k => x.days[k].entries.forEach(e => { if (!fixedE(x.days[k], e)) e.h = ''; }));
+      act_.forEach((it, di) => {
+        splitUnits(alloc[di], it.open.length).forEach((u, j) => { x.days[it.k].entries[it.open[j]].h = u ? fmtIn(u * STEP) : ''; });
       });
       return x;
     });
     toast(got < sollNum - 0.01 && rest > 0
-      ? `Nur ${fmtIn(got)} Std. möglich (max. ${cap} Std. pro Tag, ${active.length} ${active.length === 1 ? 'Tag' : 'Tage'} mit Einträgen)`
-      : `${fmtIn(got)} Std. verteilt` + (fixed.length ? ` (Schule ${fmtIn(fixedSum)} fest)` : ''));
+      ? `Nur ${fmtIn(got)} Std. möglich (max. ${cap} Std. pro Tag, ${act_.length} ${act_.length === 1 ? 'Tag' : 'Tage'} mit Einträgen)`
+      : `${fmtIn(got)} Std. verteilt` + (fixedSum ? ` (Schule ${fmtIn(fixedSum)} fest)` : ''));
   };
 
   return (
@@ -781,7 +807,7 @@ function StundenplanView({heft, onSave}) {
     <>
       <div className="sheet">
         <h2>Stundenplan Berufsschule</h2>
-        <p className="muted small">Schulstunden = Anzahl der Unterrichtsstunden (je 45 Min.) pro Tag laut Stundenplan, z. B. 1. bis 6. Stunde = 6. Die App rechnet daraus die Schulstunden der Woche (§ 15 BBiG): Ein Schultag mit mehr als 5 Unterrichtsstunden zählt einmal pro Woche als normaler Arbeitstag ({fmtIn(soll / 5)} Std.), eine Blockwoche mit mindestens 25 Unterrichtsstunden an 5 Tagen als volle Woche ({fmtIn(soll)} Std.), sonst zählt die Unterrichtszeit.</p>
+        <p className="muted small">Einmal eintragen, danach reicht in der Woche ein Tipp auf „Berufsschule“ beim Tag: Fächer und Stunden werden automatisch eingetragen. Schulstunden = Anzahl der Unterrichtsstunden (je 45 Min.) pro Tag laut Stundenplan, z. B. 1. bis 6. Stunde = 6. Die App rechnet daraus die Schulstunden der Woche (§ 15 BBiG): Ein Schultag mit mehr als 5 Unterrichtsstunden zählt einmal pro Woche als normaler Arbeitstag ({fmtIn(soll / 5)} Std.), eine Blockwoche mit mindestens 25 Unterrichtsstunden an 5 Tagen als volle Woche ({fmtIn(soll)} Std.), sonst zählt die Unterrichtszeit.</p>
         <label className="row small" style={{margin:'10px 0'}}>
           <input type="checkbox" checked={p.wechsel} onChange={e => upd(x => { x.wechsel = e.target.checked; return x; })}/> Wechselwochen (Woche A / Woche B)
         </label>
@@ -847,6 +873,7 @@ function WeekView({role, heft, wk, setWk, minWk, w, act, ausSig, onPdf}) {
   const dbl = heft.deckblatt;
   const mon = parse(wk);
   const st = statusOf(w);
+  const schoolWeek = schoolForWeek(heft.stundenplan, wk, Math.min(60, Math.max(1, num(heft.wochenSoll) || 40)));
   const isAzubi = role === 'azubi';
   const locked = !isAzubi || !!w.sig.azubi;
   const minor = minorAt(wk, dbl.geburtsdatum);
@@ -918,7 +945,7 @@ function WeekView({role, heft, wk, setWk, minWk, w, act, ausSig, onPdf}) {
       </div>
 
       {DAYS.map(([k, l], i) => (
-        <DayCard key={wk + k} label={l} date={addDays(mon, i)} day={w.days[k]} locked={locked}
+        <DayCard key={wk + k} label={l} date={addDays(mon, i)} day={w.days[k]} locked={locked} school={schoolWeek.out[k]} noPlan={!hasPlanData(heft.stundenplan)}
           onChange={fn => act.edit(x => { x.days[k] = fn(x.days[k]); return x; })}/>
       ))}
 
