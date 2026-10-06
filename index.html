@@ -739,7 +739,7 @@ function StundenplanView({heft, onSave}) {
     <>
       <div className="sheet">
         <h2>Stundenplan Berufsschule</h2>
-        <p className="muted small">Unterrichtsstunden pro Tag eintragen. Die App rechnet daraus die Schulstunden der Woche (§ 15 BBiG): Ein Schultag mit mehr als 5 Unterrichtsstunden zählt einmal pro Woche als normaler Arbeitstag ({fmtIn(soll / 5)} Std.), eine Blockwoche mit mindestens 25 Unterrichtsstunden an 5 Tagen als volle Woche ({fmtIn(soll)} Std.), sonst zählt die Unterrichtszeit.</p>
+        <p className="muted small">Schulstunden = Anzahl der Unterrichtsstunden (je 45 Min.) pro Tag laut Stundenplan, z. B. 1. bis 6. Stunde = 6. Die App rechnet daraus die Schulstunden der Woche (§ 15 BBiG): Ein Schultag mit mehr als 5 Unterrichtsstunden zählt einmal pro Woche als normaler Arbeitstag ({fmtIn(soll / 5)} Std.), eine Blockwoche mit mindestens 25 Unterrichtsstunden an 5 Tagen als volle Woche ({fmtIn(soll)} Std.), sonst zählt die Unterrichtszeit.</p>
         <label className="row small" style={{margin:'10px 0'}}>
           <input type="checkbox" checked={p.wechsel} onChange={e => upd(x => { x.wechsel = e.target.checked; return x; })}/> Wechselwochen (Woche A / Woche B)
         </label>
@@ -756,7 +756,7 @@ function StundenplanView({heft, onSave}) {
             <div className="spday" key={k}>
               <div className="sphead"><b>{l}</b><span className="muted small">{calc.out[k] ? '= ' + fmtIn(calc.out[k].h) + ' Std.' : ''}</span></div>
               <div className="spgrid">
-                <label className="fld"><span>Unterrichtsstd.</span><input inputMode="decimal" value={d.ust || ''} onChange={e => setDay(k, 'ust', cleanHours(e.target.value))}/></label>
+                <label className="fld"><span>Schulstunden</span><input inputMode="decimal" value={d.ust || ''} onChange={e => setDay(k, 'ust', cleanHours(e.target.value))}/></label>
                 <label className="fld"><span>von</span><input type="time" value={d.von || ''} onChange={e => setDay(k, 'von', e.target.value)}/></label>
                 <label className="fld"><span>bis</span><input type="time" value={d.bis || ''} onChange={e => setDay(k, 'bis', e.target.value)}/></label>
               </div>
@@ -774,7 +774,7 @@ function StundenplanView({heft, onSave}) {
           <div className="listrow" key={i}>
             <label className="fld"><span>von</span><input type="date" value={b.von || ''} onChange={e => setRow('bloecke', i, 'von', e.target.value)}/></label>
             <label className="fld"><span>bis</span><input type="date" value={b.bis || ''} onChange={e => setRow('bloecke', i, 'bis', e.target.value)}/></label>
-            <label className="fld"><span>Unterrichtsstd. pro Tag</span><input inputMode="decimal" value={b.ust || ''} placeholder="8" onChange={e => setRow('bloecke', i, 'ust', cleanHours(e.target.value))}/></label>
+            <label className="fld"><span>Schulstunden pro Tag</span><input inputMode="decimal" value={b.ust || ''} placeholder="8" onChange={e => setRow('bloecke', i, 'ust', cleanHours(e.target.value))}/></label>
             <label className="fld"><span>Fächer (optional)</span><input value={b.text || ''} onChange={e => setRow('bloecke', i, 'text', e.target.value)}/></label>
             <button className="btn small ghost wide" onClick={() => upd(x => { x.bloecke.splice(i, 1); return x; })}>Entfernen</button>
           </div>
