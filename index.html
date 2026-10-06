@@ -126,6 +126,14 @@ h3{font-size:1.05rem;margin:0}
 .spday{border-top:1px solid var(--rule);padding:12px 0 6px}
 .sphead{display:flex;justify-content:space-between;margin-bottom:6px}
 .spgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
+.spgrid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fachrow{display:grid;grid-template-columns:minmax(0,1fr) 72px 34px;gap:8px;margin-bottom:6px;align-items:center}
+.fachrow input{min-width:0;width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:7px;padding:9px 10px;font-size:1rem;color:var(--ink)}
+.fachrow input:nth-of-type(2){text-align:center}
+.fachrow .x{border:0;background:transparent;color:var(--muted);font-size:1.3rem;height:38px}
+.fachhead{font-size:.82rem;color:var(--muted);margin-bottom:2px}
+.fachhead span:nth-child(2){text-align:center}
+.spday .btn.small{margin:2px 0 10px}
 .spgrid .fld,.listrow .fld{min-width:0}
 .spgrid input,.listrow input{min-width:0;padding:9px 6px}
 .spgrid input[type=time],.listrow input[type=date]{font-size:.92rem}
@@ -614,6 +622,27 @@ const clockH = (von, bis) => {
   return a !== null && b !== null && b > a ? (b - a) / 60 : 0;
 };
 const emptyPlan = () => ({wechsel: false, refA: '', a: {}, b: {}, bloecke: [], ferien: []});
+// Ein Tag im Plan: Schulstunden, von/bis, Fächer-Text (liest auch das frühere Fächer-Listenformat)
+const planDay = d => {
+  const fs = Array.isArray(d?.faecher) ? d.faecher : null;
+  const sum = fs ? fs.reduce((a, f) => a + num(f.std), 0) : 0;
+  return {
+    ust: d?.ust != null ? String(d.ust) : (sum ? String(sum) : ''),
+    text: d?.text != null ? String(d.text) : (fs ? fs.map(f => (f.fach || '').trim()).filter(Boolean).join(', ') : ''),
+    von: d?.von || '', bis: d?.bis || ''
+  };
+};
+const cleanPlan = p => {
+  const x = clone(p);
+  ['a', 'b'].forEach(t => {
+    const o = {};
+    Object.keys(x[t] || {}).forEach(k => { const d = planDay(x[t][k]); if (d.ust || d.text.trim() || d.von || d.bis) o[k] = d; });
+    x[t] = o;
+  });
+  x.bloecke = (x.bloecke || []).filter(b => b.von && b.bis);
+  x.ferien = (x.ferien || []).filter(r => r.von && r.bis);
+  return x;
+};
 
 // § 15 BBiG: Schultag mit >5 UStd. (1x/Woche) = durchschnittliche Tageszeit (Soll/5),
 // Blockwoche (>=25 UStd. an 5 Tagen) = Wochen-Soll, sonst Unterrichtszeit
@@ -633,52 +662,53 @@ function calcSchool(items, soll) {
   return {out, block: false};
 }
 function schoolForWeek(plan, wk, soll) {
-  if (!plan) return {out: {}, block: false};
+  if (!plan) return {out: {}, block: false, ab: null};
   const mon = parse(wk), dateOf = i => iso(addDays(mon, i));
   const free = d => (plan.ferien || []).some(r => r.von && r.bis && d >= r.von && d <= r.bis);
   const blk = (plan.bloecke || []).find(b => b.von && b.bis && b.von <= dateOf(4) && b.bis >= dateOf(0));
   const items = [];
+  let ab = null;
   if (blk) {
     DAYS.slice(0, 5).forEach(([k], i) => {
       const d = dateOf(i);
       if (d >= blk.von && d <= blk.bis && !free(d)) items.push({k, ust: num(blk.ust) || 8, clock: 0, text: (blk.text || '').trim() || 'Berufsschule (Blockunterricht)'});
     });
   } else {
-    let ab = 'a';
+    ab = 'a';
     const r = plan.wechsel && parse(plan.refA);
     if (r) { const diff = Math.round((mon - monday(r)) / (7 * 864e5)); ab = ((diff % 2) + 2) % 2 === 0 ? 'a' : 'b'; }
     const pl = plan[ab] || {};
     DAYS.slice(0, 5).forEach(([k], i) => {
-      const p = pl[k] || {}, ust = num(p.ust), c = clockH(p.von, p.bis);
-      if ((ust > 0 || c > 0) && !free(dateOf(i))) items.push({k, ust, clock: c, text: (p.text || '').trim() || 'Berufsschule'});
+      const p = planDay(pl[k]), ust = num(p.ust), c = clockH(p.von, p.bis);
+      if ((ust > 0 || c > 0) && !free(dateOf(i))) items.push({k, ust, clock: c, text: p.text.trim() || 'Berufsschule'});
     });
   }
-  return calcSchool(items, soll);
+  const res = calcSchool(items, soll);
+  res.ab = plan.wechsel ? ab : null;
+  return res;
 }
 
 function AutoHours({heft, w, wk, minor, act}) {
   const [soll, setSoll] = useState(String(heft.wochenSoll || 40));
   const sollNum = Math.min(60, Math.max(1, num(soll) || 40));
   const plan = heft.stundenplan;
-  const hasPlan = !!plan && (['a', 'b'].some(t => Object.values(plan[t] || {}).some(d => num(d.ust) > 0 || clockH(d.von, d.bis) > 0)) || (plan.bloecke || []).length > 0);
+  const hasPlan = !!plan && (['a', 'b'].some(t => Object.values(plan[t] || {}).some(d => { const q = planDay(d); return num(q.ust) > 0 || clockH(q.von, q.bis) > 0; })) || (plan.bloecke || []).length > 0);
   const lbl = k => DAYS.find(d => d[0] === k)[1].slice(0, 2);
 
   const schuleEintragen = () => {
     const res = schoolForWeek(plan, wk, sollNum);
     const ks = Object.keys(res.out);
-    if (!ks.length) { toast('Laut Stundenplan keine Schule in dieser Woche'); return; }
-    const skipped = [];
-    act.edit(x => {
-      ks.forEach(k => {
-        const d = x.days[k];
-        const used = d.entries.some(e => e.text.trim() || num(e.h));
-        if (['urlaub', 'krank', 'feiertag'].includes(d.typ) || (used && d.typ !== 'schule')) { skipped.push(k); return; }
-        d.typ = 'schule'; d.entries = [{text: res.out[k].text, h: fmtIn(res.out[k].h)}];
-      });
+    if (!ks.length) { toast(res.ab ? `Laut Stundenplan keine Schule in Woche ${res.ab.toUpperCase()}` : 'Laut Stundenplan keine Schule in dieser Woche'); return; }
+    const gesperrt = ks.filter(k => ['urlaub', 'krank', 'feiertag'].includes(w.days[k].typ));
+    let todo = ks.filter(k => !gesperrt.includes(k));
+    const belegt = todo.filter(k => w.days[k].typ !== 'schule' && w.days[k].entries.some(e => e.text.trim() || num(e.h)));
+    if (belegt.length && !confirm(`${belegt.map(lbl).join(', ')} ${belegt.length > 1 ? 'haben' : 'hat'} schon Einträge. Mit dem Stundenplan überschreiben?`)) todo = todo.filter(k => !belegt.includes(k));
+    if (todo.length) act.edit(x => {
+      todo.forEach(k => { const d = x.days[k]; d.typ = 'schule'; d.entries = [{text: res.out[k].text, h: fmtIn(res.out[k].h)}]; });
       return x;
     });
-    const done = ks.filter(k => !skipped.includes(k));
-    toast((done.length ? 'Schule: ' + done.map(k => `${lbl(k)} ${fmtIn(res.out[k].h)}`).join(', ') : 'Nichts eingetragen') + (skipped.length ? ` (${skipped.map(lbl).join(', ')} belegt)` : ''));
+    toast((todo.length ? 'Schule: ' + todo.map(k => `${lbl(k)} ${fmtIn(res.out[k].h)}`).join(', ') : 'Nichts eingetragen')
+      + (gesperrt.length ? ` (${gesperrt.map(lbl).join(', ')}: Urlaub/Krank/Feiertag, nicht geändert)` : ''));
   };
 
   const verteilen = () => {
@@ -723,18 +753,30 @@ function AutoHours({heft, w, wk, minor, act}) {
 
 function StundenplanView({heft, onSave}) {
   const soll = Math.min(60, Math.max(1, num(heft.wochenSoll) || 40));
-  const base = () => ({...emptyPlan(), ...(heft.stundenplan || {})});
-  const [p, setP] = useState(base);
+  const [p, setP] = useState(() => ({...emptyPlan(), ...(heft.stundenplan || {})}));
   const [ab, setAb] = useState('a');
+  const [status, setStatus] = useState('');
+  const pRef = useRef(p); pRef.current = p;
+  const savedRef = useRef(JSON.stringify(cleanPlan(p)));
+  const mounted = useRef(true);
   const upd = fn => setP(prev => fn(clone(prev)));
+
+  // Automatisch speichern (kurz nach der letzten Eingabe und beim Verlassen des Tabs)
+  const doSave = () => {
+    const x = cleanPlan(pRef.current), j = JSON.stringify(x);
+    if (j === savedRef.current) return;
+    savedRef.current = j;
+    Promise.resolve(onSave(x)).then(() => { if (mounted.current) setStatus('Gespeichert ✓'); });
+  };
+  useEffect(() => { setStatus(''); const t = setTimeout(doSave, 700); return () => clearTimeout(t); }, [p]);
+  useEffect(() => () => { mounted.current = false; doSave(); }, []);
+
   const t = p.wechsel ? ab : 'a';
   const cur = p[t] || {};
-  const setDay = (k, f, v) => upd(x => { x[t] = x[t] || {}; x[t][k] = {...(x[t][k] || {}), [f]: v}; return x; });
-  const items = DAYS.slice(0, 5).map(([k]) => { const d = cur[k] || {}; return {k, ust: num(d.ust), clock: clockH(d.von, d.bis), text: ''}; }).filter(i => i.ust > 0 || i.clock > 0);
+  const setDay = (k, f, v) => upd(x => { x[t] = x[t] || {}; x[t][k] = {...planDay(x[t][k]), [f]: v}; return x; });
+  const items = DAYS.slice(0, 5).map(([k]) => { const d = planDay(cur[k]); return {k, ust: num(d.ust), clock: clockH(d.von, d.bis), text: ''}; }).filter(i => i.ust > 0 || i.clock > 0);
   const calc = calcSchool(items, soll);
   const setRow = (name, i, f, v) => upd(x => { x[name][i][f] = v; return x; });
-  const dirty = JSON.stringify(p) !== JSON.stringify(base());
-  const save = () => { const x = clone(p); x.bloecke = x.bloecke.filter(b => b.von && b.bis); x.ferien = x.ferien.filter(r => r.von && r.bis); onSave(x); };
   return (
     <>
       <div className="sheet">
@@ -751,16 +793,16 @@ function StundenplanView({heft, onSave}) {
             <input type="date" value={p.refA || ''} onChange={e => upd(x => { x.refA = e.target.value; return x; })}/></label>
         </>}
         {DAYS.slice(0, 5).map(([k, l]) => {
-          const d = cur[k] || {};
+          const d = planDay(cur[k]);
           return (
             <div className="spday" key={k}>
               <div className="sphead"><b>{l}</b><span className="muted small">{calc.out[k] ? '= ' + fmtIn(calc.out[k].h) + ' Std.' : ''}</span></div>
               <div className="spgrid">
-                <label className="fld"><span>Schulstunden</span><input inputMode="decimal" value={d.ust || ''} onChange={e => setDay(k, 'ust', cleanHours(e.target.value))}/></label>
-                <label className="fld"><span>von</span><input type="time" value={d.von || ''} onChange={e => setDay(k, 'von', e.target.value)}/></label>
-                <label className="fld"><span>bis</span><input type="time" value={d.bis || ''} onChange={e => setDay(k, 'bis', e.target.value)}/></label>
+                <label className="fld"><span>Schulstunden</span><input inputMode="decimal" value={d.ust} onChange={e => setDay(k, 'ust', cleanHours(e.target.value))}/></label>
+                <label className="fld"><span>von</span><input type="time" value={d.von} onChange={e => setDay(k, 'von', e.target.value)}/></label>
+                <label className="fld"><span>bis</span><input type="time" value={d.bis} onChange={e => setDay(k, 'bis', e.target.value)}/></label>
               </div>
-              <label className="fld"><span>Fächer (optional, kommt ins Berichtsheft)</span><input value={d.text || ''} onChange={e => setDay(k, 'text', e.target.value)}/></label>
+              <label className="fld"><span>Fächer (optional, kommt ins Berichtsheft)</span><input value={d.text} onChange={e => setDay(k, 'text', e.target.value)}/></label>
             </div>
           );
         })}
@@ -795,9 +837,7 @@ function StundenplanView({heft, onSave}) {
         <button className="btn small" onClick={() => upd(x => { x.ferien.push({von: '', bis: ''}); return x; })}>+ Schulfrei</button>
       </div>
 
-      <div className="row" style={{marginTop:14}}>
-        <button className="btn primary" disabled={!dirty} onClick={save}>Stundenplan speichern</button>
-      </div>
+      <p className="muted small" style={{marginTop:14}}>Änderungen werden automatisch gespeichert. {status}</p>
     </>
   );
 }
@@ -1087,8 +1127,8 @@ function Heft({heftId, role, user, ausSig, ausName, onBack}) {
         {tab === 'woche' && <WeekView role={role} heft={heft} wk={wk} setWk={k => { flushAll(); setWk(k); }} minWk={minWk} w={w} act={act} ausSig={ausSig} onPdf={onPdf}/>}
         {tab === 'uebersicht' && <Overview role={role} heft={heft} weeks={weeks} minWk={minWk} act={act} ausSig={ausSig} onPdf={onPdf}
                                    open={k => { setWk(k); setTab('woche'); window.scrollTo(0, 0); }}/>}
-        {tab === 'schule' && role === 'azubi' && <StundenplanView key={JSON.stringify(heft.stundenplan || {})} heft={heft}
-          onSave={pl => ref.update({stundenplan: JSON.parse(JSON.stringify(pl))}).then(() => toast('Stundenplan gespeichert')).catch(() => toast('Speichern fehlgeschlagen'))}/>}
+        {tab === 'schule' && role === 'azubi' && <StundenplanView heft={heft}
+          onSave={pl => ref.update({stundenplan: JSON.parse(JSON.stringify(pl))}).catch(() => toast('Stundenplan nicht gespeichert'))}/>}
         {tab === 'deckblatt' && <>
           <DeckblattForm key={JSON.stringify(dbl)} initial={dbl} onSave={f => ref.update({deckblatt: f}).then(() => toast('Deckblatt gespeichert')).catch(() => toast('Speichern fehlgeschlagen'))}/>
           <div className="row" style={{marginTop:12}}>
