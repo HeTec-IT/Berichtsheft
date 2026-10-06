@@ -126,6 +126,11 @@ h3{font-size:1.05rem;margin:0}
 .invite{background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:.92rem}
 .modal .grid{margin:12px 0}
 .box.center{text-align:center}
+.aitemrow{display:flex;gap:8px;align-items:stretch}
+.aitemrow .aitem{flex:1;min-width:0}
+.btn.danger{color:#B3261E;border-color:#B3261E;background:transparent}
+.btn.danger:disabled{opacity:.4;cursor:not-allowed}
+.btn.danger:not(:disabled):hover{background:#B3261E;color:#fff}
 .installwrap{max-width:760px;margin:0 auto;padding:12px 16px 0}
 .installbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border:1px solid var(--accent);border-radius:12px;padding:10px 14px;font-size:.92rem}
 .inst-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:210px}
@@ -1234,6 +1239,47 @@ async function shareAppLink() {
   try { await navigator.clipboard.writeText(text); toast('Link kopiert'); } catch (_) { prompt('Link kopieren:', text); }
 }
 
+function DeleteAzubi({heft, onClose}) {
+  const [txt, setTxt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const name = `${heft.deckblatt?.vorname || heft.azubiVorname || ''} ${heft.deckblatt?.name || heft.azubiName || ''}`.trim() || heft.azubiEmail;
+  const ok = ['LÖSCHEN', 'LOESCHEN'].includes(txt.trim());
+  const run = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try {
+      const hr = db.collection('hefte').doc(heft.id);
+      const ws = await hr.collection('wochen').get();
+      const ids = ws.docs.map(d => d.id);
+      for (let i = 0; i < ids.length; i += 400) {
+        const b = db.batch();
+        ids.slice(i, i + 400).forEach(id => b.delete(hr.collection('wochen').doc(id)));
+        await b.commit();
+      }
+      await hr.delete();
+      await db.collection('anfragen').doc(heft.id).delete().catch(() => {});
+      toast(name + ' gelöscht');
+      onClose();
+    } catch (e) { console.error(e); toast('Löschen fehlgeschlagen' + (e.code ? ': ' + e.code : '')); setBusy(false); }
+  };
+  return (
+    <div className="modal" onClick={e => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="box">
+        <h3 style={{color:'#B3261E'}}>Azubi endgültig löschen</h3>
+        <p><b>{name}</b>{heft.azubiEmail ? ` (${heft.azubiEmail})` : ''} wird mit Berichtsheft, allen Wochen und allen Unterschriften gelöscht. Das lässt sich nicht rückgängig machen.</p>
+        <p className="muted small">Das Anmeldekonto bleibt bestehen. Die Person kann sich neu anmelden und Zugang anfragen.</p>
+        <label className="fld"><span>Zum Bestätigen LÖSCHEN eingeben (alles groß)</span>
+          <input className="inp" style={{width:'100%'}} value={txt} autoCapitalize="characters" autoComplete="off" autoCorrect="off" spellCheck={false}
+            onChange={e => setTxt(e.target.value)} onKeyDown={e => e.key === 'Enter' && run()}/></label>
+        <div className="row" style={{justifyContent:'flex-end',marginTop:14}}>
+          <button className="btn" disabled={busy} onClick={onClose}>Abbrechen</button>
+          <button className="btn danger" disabled={!ok || busy} onClick={run}>{busy ? 'Löscht …' : 'Endgültig löschen'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AusbilderHome({user}) {
   const [sel, setSel] = useState(null);
   const [hefte, setHefte] = useState(null);
@@ -1241,6 +1287,7 @@ function AusbilderHome({user}) {
   const [prof, setProf] = useState({});
   const [nameDraft, setNameDraft] = useState(null);
   const [pad, setPad] = useState(false);
+  const [del, setDel] = useState(null);
   const meRef = db.collection('ausbilder').doc(user.uid);
   useEffect(() => db.collection('hefte').where('ausbilderUid', '==', user.uid).onSnapshot(
     qs => setHefte(qs.docs.map(d => ({id: d.id, ...d.data()})).sort((a, b) => (a.azubiVorname || '').localeCompare(b.azubiVorname || ''))),
@@ -1302,11 +1349,14 @@ function AusbilderHome({user}) {
         : hefte.length === 0 ? <div className="sheet"><p className="muted" style={{margin:0}}>Noch keine Azubis. Schick deiner Azubine den Link; ihre Anfrage erscheint dann hier oben.</p></div>
         : <div className="wlist" style={{marginTop:0}}>
             {hefte.map(h => (
-              <button key={h.id} className="aitem" onClick={() => { setSel(h.id); window.scrollTo(0, 0); }}>
-                <span><b>{h.deckblatt?.vorname || h.azubiVorname} {h.deckblatt?.name || h.azubiName}</b><br/>
-                  <span className="muted small">{h.setupDone ? (h.deckblatt?.beruf || '') : 'Deckblatt noch offen'}</span></span>
-                <PendingCount id={h.id}/>
-              </button>
+              <div key={h.id} className="aitemrow">
+                <button className="aitem" onClick={() => { setSel(h.id); window.scrollTo(0, 0); }}>
+                  <span><b>{h.deckblatt?.vorname || h.azubiVorname} {h.deckblatt?.name || h.azubiName}</b><br/>
+                    <span className="muted small">{h.setupDone ? (h.deckblatt?.beruf || '') : 'Deckblatt noch offen'}</span></span>
+                  <PendingCount id={h.id}/>
+                </button>
+                <button className="btn small danger" aria-label={`${h.azubiVorname || ''} ${h.azubiName || ''} löschen`} onClick={() => setDel(h)}>Löschen</button>
+              </div>
             ))}
           </div>}
 
@@ -1328,6 +1378,7 @@ function AusbilderHome({user}) {
       </div>
       {pad && <SigPad title="Meine Unterschrift" onClose={() => setPad(false)}
         onSave={img => { meRef.set({sig: img}, {merge: true}).then(() => toast('Unterschrift gespeichert')); setPad(false); }}/>}
+      {del && <DeleteAzubi heft={del} onClose={() => setDel(null)}/>}
     </div>
   );
 }
